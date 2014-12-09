@@ -7,6 +7,7 @@ import (
 	"go/doc"
 	"go/printer"
 	"go/token"
+	"golang.org/x/tools/go/types"
 )
 
 type Change interface {

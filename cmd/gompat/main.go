@@ -2,21 +2,90 @@ package main
 
 import (
 	"fmt"
+	"go/ast"
+	"go/build"
 	"go/doc"
 	"go/parser"
 	"go/token"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/motemen/gompatible"
+	_ "golang.org/x/tools/go/gcimporter"
+	"golang.org/x/tools/go/types"
 )
 
 //import "github.com/k0kubun/pp"
 
 func noTestFilter(fi os.FileInfo) bool {
 	return strings.HasSuffix(fi.Name(), "_test.go") == false
+}
+
+func listGoSource(path string) ([]string, error) {
+	fd, err := os.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+
+	list, err := fd.Readdir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := build.Context{}
+
+	files := []string{}
+
+	for _, d := range list {
+		match, err := ctx.MatchFile(path, d.Name())
+		if err != nil {
+			return nil, err
+		}
+
+		if match {
+			filename := filepath.Join(path, d.Name())
+			files = append(files, filename)
+		}
+	}
+
+	return files, nil
+}
+
+func dieIf(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func typesPkg(dir string) (*types.Package, error) {
+	fset := token.NewFileSet()
+
+	conf := types.Config{
+		IgnoreFuncBodies: true,
+		Error: func(err error) {
+			log.Println(err)
+		},
+	}
+
+	filepaths, err := listGoSource(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	astFiles := []*ast.File{}
+	for _, filepath := range filepaths {
+		f, err := parser.ParseFile(fset, filepath, nil, 0)
+		if err != nil {
+			log.Fatal(err)
+		}
+		astFiles = append(astFiles, f)
+	}
+
+	return conf.Check(dir, fset, astFiles, nil)
 }
 
 func main() {
@@ -27,49 +96,57 @@ func main() {
 		after  = os.Args[2]
 	)
 
-	err = exec.Command("git", "checkout", before).Run()
-	if err != nil {
-		log.Fatal(err)
-	}
+	dieIf(exec.Command("git", "checkout", before).Run())
 
-	pkgsBefore, err := parser.ParseDir(token.NewFileSet(), ".", noTestFilter, parser.ParseComments)
+	pkgBefore, err := typesPkg(".")
+	dieIf(err)
 
-	err = exec.Command("git", "checkout", after).Run()
-	if err != nil {
-		log.Fatal(err)
-	}
+	dieIf(exec.Command("git", "checkout", after).Run())
+	pkgAfter, err := typesPkg(".")
+	dieIf(err)
 
-	pkgsAfter, err := parser.ParseDir(token.NewFileSet(), ".", noTestFilter, parser.ParseComments)
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Println(pkgBefore, pkgAfter)
 
-	for name := range pkgsAfter {
-		fmt.Println("package %s", name)
+	if false {
+		pkgsBefore, err := parser.ParseDir(token.NewFileSet(), ".", noTestFilter, parser.ParseComments)
 
-		var importPath = "XXX stub"
-		var mode doc.Mode
-		var (
-			docA = doc.New(pkgsBefore[name], importPath, mode)
-			docB = doc.New(pkgsAfter[name], importPath, mode)
-		)
-
-		funcsA := map[string]*doc.Func{}
-		funcsB := map[string]*doc.Func{}
-
-		for _, f := range docA.Funcs {
-			funcsA[f.Name] = f
-		}
-		for _, f := range docB.Funcs {
-			funcsB[f.Name] = f
+		err = exec.Command("git", "checkout", after).Run()
+		if err != nil {
+			log.Fatal(err)
 		}
 
-		for name := range funcsA {
-			fc := gompatible.FuncChange{
-				Before: funcsA[name],
-				After:  funcsB[name],
+		pkgsAfter, err := parser.ParseDir(token.NewFileSet(), ".", noTestFilter, parser.ParseComments)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for name := range pkgsAfter {
+			fmt.Println("package %s", name)
+
+			var importPath = "XXX stub"
+			var mode doc.Mode
+			var (
+				docA = doc.New(pkgsBefore[name], importPath, mode)
+				docB = doc.New(pkgsAfter[name], importPath, mode)
+			)
+
+			funcsA := map[string]*doc.Func{}
+			funcsB := map[string]*doc.Func{}
+
+			for _, f := range docA.Funcs {
+				funcsA[f.Name] = f
 			}
-			fmt.Println(gompatible.ShowChange(fc))
+			for _, f := range docB.Funcs {
+				funcsB[f.Name] = f
+			}
+
+			for name := range funcsA {
+				fc := gompatible.FuncChange{
+					Before: funcsA[name],
+					After:  funcsB[name],
+				}
+				fmt.Println(gompatible.ShowChange(fc))
+			}
 		}
 	}
 }
