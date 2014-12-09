@@ -4,13 +4,20 @@ import (
 	"golang.org/x/tools/go/types"
 )
 
+type ChangeKind int
+
+const (
+	ChangeUnchanged ChangeKind = iota
+	ChangeAdded
+	ChangeRemoved
+	ChangeCompatible
+	ChangeBreaking
+)
+
 type Change interface {
 	ObjectBefore() types.Object
 	ObjectAfter() types.Object
-	IsAdded() bool
-	IsRemoved() bool
-	IsUnchanged() bool
-	IsCompatible() bool
+	Kind() ChangeKind
 }
 
 var _ = Change((*FuncChange)(nil))
@@ -28,28 +35,40 @@ func (fc FuncChange) ObjectAfter() types.Object {
 	return fc.After
 }
 
-func (fc FuncChange) IsAdded() bool {
-	return fc.Before == nil
-}
-
-func (fc FuncChange) IsRemoved() bool {
-	return fc.After == nil
-}
-
-func (fc FuncChange) IsUnchanged() bool {
-	return fc.Before.String() == fc.After.String()
-}
-
-func ShowChange(c Change) string {
+func (fc FuncChange) Kind() ChangeKind {
 	switch {
-	case c.IsAdded():
+	case fc.Before == nil && fc.After == nil:
+		// XXX
+		return ChangeUnchanged
+
+	case fc.Before == nil:
+		return ChangeAdded
+
+	case fc.After == nil:
+		return ChangeRemoved
+
+	case fc.Before.String() == fc.After.String():
+		return ChangeUnchanged
+
+	case fc.isCompatible():
+		return ChangeCompatible
+
+	default:
+		return ChangeBreaking
+	}
+}
+func ShowChange(c Change) string {
+	switch c.Kind() {
+	case ChangeAdded:
 		return "+ " + c.ObjectAfter().String()
-	case c.IsRemoved():
+	case ChangeRemoved:
 		return "- " + c.ObjectBefore().String()
-	case c.IsUnchanged():
+	case ChangeUnchanged:
 		return "= " + c.ObjectBefore().String()
-	case c.IsCompatible():
+	case ChangeCompatible:
 		return "* " + c.ObjectBefore().String() + " -> " + c.ObjectAfter().String()
+	case ChangeBreaking:
+		fallthrough
 	default:
 		return "! " + c.ObjectBefore().String() + " -> " + c.ObjectAfter().String()
 	}
@@ -121,7 +140,7 @@ func tuplesCompatibleExtra(p1, p2 *types.Tuple) []*types.Var {
 	return vars
 }
 
-func (fc FuncChange) IsCompatible() bool {
+func (fc FuncChange) isCompatible() bool {
 	if fc.Before == nil || fc.After == nil {
 		return false
 	}

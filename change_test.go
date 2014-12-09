@@ -90,11 +90,15 @@ func Added1()
 		t.Log(ShowChange(change))
 
 		if strings.HasPrefix(name, "Unchanged") {
-			assert.True(t, change.IsUnchanged())
+			assert.Equal(t, change.Kind(), ChangeUnchanged)
 		} else if strings.HasPrefix(name, "Compatible") {
-			assert.True(t, change.IsCompatible())
+			assert.Equal(t, change.Kind(), ChangeCompatible)
+		} else if strings.HasPrefix(name, "Added") {
+			assert.Equal(t, change.Kind(), ChangeAdded)
+		} else if strings.HasPrefix(name, "Removed") {
+			assert.Equal(t, change.Kind(), ChangeRemoved)
 		} else {
-			assert.False(t, change.IsCompatible())
+			assert.Equal(t, change.Kind(), ChangeBreaking)
 		}
 	}
 }
