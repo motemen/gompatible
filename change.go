@@ -122,6 +122,10 @@ func tuplesCompatibleExtra(p1, p2 *types.Tuple) []*types.Var {
 }
 
 func (fc FuncChange) IsCompatible() bool {
+	if fc.Before == nil || fc.After == nil {
+		return false
+	}
+
 	typeBefore, typeAfter := fc.Before.Type(), fc.After.Type()
 	if typeBefore == nil || typeAfter == nil {
 		return false

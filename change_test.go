@@ -30,54 +30,68 @@ func typesPackage(source string) (*types.Package, error) {
 }
 
 func TestFuncChange_IsCompatible(t *testing.T) {
-	pkg, err := typesPackage(`package TEST
+	pkg1, err := typesPackage(`package TEST
+func Unchanged1(n int)
 func Compatible1(n int)
-func Compatible1_(n int)
-
 func Compatible2(n int)
-func Compatible2_(n int, opts ...string)
-
-func Compatible3(n int)
-func Compatible3_(n int) error
-
-func Compatible4(n int) error
-func Compatible4_(m int) error
-
+func Compatible3(n int) error
 func Breaking1(n int)
-func Breaking1_(n int, b bool)
-
 func Breaking2(n int) []byte
-func Breaking2_(n int) ([]byte, error)
-
 func Breaking3(n int, s string)
-func Breaking3_(n int)
-
 func Breaking4(n int) string
-func Breaking4_(n int) []byte
+func Removed1()
 `)
+
+	pkg2, err := typesPackage(`package TEST
+func Unchanged1(n int)
+func Compatible1(n int, opts ...string)
+func Compatible2(n int) error
+func Compatible3(m int) error
+func Breaking1(n int, b bool)
+func Breaking2(n int) ([]byte, error)
+func Breaking3(n int)
+func Breaking4(n int) []byte
+func Added1()
+`)
+
 	require.NoError(t, err)
 
-	funcs := map[string]*types.Func{}
-	for _, name := range pkg.Scope().Names() {
-		obj := pkg.Scope().Lookup(name)
+	funcs1 := map[string]*types.Func{}
+	funcs2 := map[string]*types.Func{}
+
+	for _, name := range pkg1.Scope().Names() {
+		obj := pkg1.Scope().Lookup(name)
 		if f, ok := obj.(*types.Func); ok {
-			funcs[f.Name()] = f
+			funcs1[f.Name()] = f
 		}
 	}
 
-	for name := range funcs {
-		if strings.HasSuffix(name, "_") {
-			continue
+	for _, name := range pkg2.Scope().Names() {
+		obj := pkg2.Scope().Lookup(name)
+		if f, ok := obj.(*types.Func); ok {
+			funcs2[f.Name()] = f
 		}
+	}
 
+	names := map[string]interface{}{}
+	for name := range funcs1 {
+		names[name] = nil
+	}
+	for name := range funcs2 {
+		names[name] = nil
+	}
+
+	for name := range names {
 		change := FuncChange{
-			Before: funcs[name],
-			After:  funcs[name+"_"],
+			Before: funcs1[name],
+			After:  funcs2[name],
 		}
 
 		t.Log(ShowChange(change))
 
-		if strings.HasPrefix(name, "Compatible") {
+		if strings.HasPrefix(name, "Unchanged") {
+			assert.True(t, change.IsUnchanged())
+		} else if strings.HasPrefix(name, "Compatible") {
 			assert.True(t, change.IsCompatible())
 		} else {
 			assert.False(t, change.IsCompatible())
