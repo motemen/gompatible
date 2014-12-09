@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/doc"
 	"go/printer"
 	"go/token"
+
 	"golang.org/x/tools/go/types"
 )
 
 type Change interface {
-	NodeBefore() ast.Node
-	NodeAfter() ast.Node
+	NodeBefore() types.Object
+	NodeAfter() types.Object
 	IsAdded() bool
 	IsRemoved() bool
 	IsUnchanged() bool
@@ -22,28 +22,16 @@ type Change interface {
 var _ = Change((*FuncChange)(nil))
 
 type FuncChange struct {
-	Before *doc.Func
-	After  *doc.Func
+	Before *types.Func
+	After  *types.Func
 }
 
-func (fc FuncChange) NodeBefore() ast.Node {
-	return fc.Before.Decl
+func (fc FuncChange) NodeBefore() types.Object {
+	return fc.Before
 }
 
-func (fc FuncChange) NodeAfter() ast.Node {
-	return fc.After.Decl
-}
-
-func showNode(node ast.Node) string {
-	var buf bytes.Buffer
-	fset := token.NewFileSet()
-
-	err := printer.Fprint(&buf, fset, node)
-	if err != nil {
-		return fmt.Sprintf("<!ERR %s>", err)
-	}
-
-	return string(buf.Bytes())
+func (fc FuncChange) NodeAfter() types.Object {
+	return fc.After
 }
 
 func (fc FuncChange) IsAdded() bool {
@@ -55,47 +43,52 @@ func (fc FuncChange) IsRemoved() bool {
 }
 
 func (fc FuncChange) IsUnchanged() bool {
-	return showNode(fc.Before.Decl) == showNode(fc.After.Decl)
+	return fc.Before.String() == fc.After.String()
 }
 
 func ShowChange(c Change) string {
 	switch {
 	case c.IsAdded():
-		return "+ " + showNode(c.NodeAfter())
+		return "+ " + c.NodeAfter().String()
 	case c.IsRemoved():
-		return "+ " + showNode(c.NodeBefore())
+		return "- " + c.NodeBefore().String()
 	case c.IsUnchanged():
-		return "= " + showNode(c.NodeBefore())
+		return "= " + c.NodeBefore().String()
 	case c.IsCompatible():
-		return "* " + showNode(c.NodeBefore()) + " -> " + showNode(c.NodeAfter())
+		return "* " + c.NodeBefore().String() + " -> " + c.NodeAfter().String()
 	default:
-		return "! " + showNode(c.NodeBefore()) + " -> " + showNode(c.NodeAfter())
+		return "! " + c.NodeBefore().String() + " -> " + c.NodeAfter().String()
 	}
 }
 
-func paramsCompatible(p1, p2 *ast.FieldList) bool {
-	extra := fieldListCompatibleExtra(p1, p2)
+func sigParamsCompatible(s1, s2 *types.Signature) bool {
+	extra := tuplesCompatibleExtra(s1.Params(), s2.Params())
 
 	switch {
 	case extra == nil:
+		// s2 params is incompatible with s1 params
 		return false
+
 	case len(extra) == 0:
+		// s2 params is compatible with s1 params
 		return true
+
 	case len(extra) == 1:
-		if _, ok := extra[0].Type.(*ast.Ellipsis); ok {
-			return ok
+		// s2 params is compatible with s1 params with an extra variadic arg
+		if s1.Variadic() == false && s2.Variadic() == true {
+			return true
 		}
 	}
 
 	return false
 }
 
-func resultsCompatible(p1, p2 *ast.FieldList) bool {
-	if p1.NumFields() == 0 {
+func sigResultsCompatible(s1, s2 *types.Signature) bool {
+	if s1.Results().Len() == 0 {
 		return true
 	}
 
-	extra := fieldListCompatibleExtra(p1, p2)
+	extra := tuplesCompatibleExtra(s1.Results(), s2.Results())
 
 	switch {
 	case extra == nil:
@@ -107,45 +100,48 @@ func resultsCompatible(p1, p2 *ast.FieldList) bool {
 	return false
 }
 
+func tuplesCompatibleExtra(p1, p2 *types.Tuple) []*types.Var {
+	len1 := p1.Len()
+	len2 := p2.Len()
+
+	if len1 > len2 {
+		return nil
+	}
+
+	vars := make([]*types.Var, len2-len1)
+
+	for i := 0; i < len2; i++ {
+		if i < len1 {
+			v1 := p1.At(i)
+			v2 := p2.At(i)
+
+			if v1.Type().String() != v2.Type().String() {
+				return nil
+			}
+		} else {
+			v2 := p2.At(i)
+			vars[i-len1] = v2
+		}
+	}
+
+	return vars
+}
+
 func (fc FuncChange) IsCompatible() bool {
-	if paramsCompatible(fc.Before.Decl.Type.Params, fc.After.Decl.Type.Params) == false {
+	typeBefore, typeAfter := fc.Before.Type(), fc.After.Type()
+	if typeBefore == nil || typeAfter == nil {
 		return false
 	}
 
-	if resultsCompatible(fc.Before.Decl.Type.Results, fc.After.Decl.Type.Results) == false {
+	sigBefore, sigAfter := typeBefore.(*types.Signature), typeAfter.(*types.Signature)
+
+	if sigParamsCompatible(sigBefore, sigAfter) == false {
+		return false
+	}
+
+	if sigResultsCompatible(sigBefore, sigAfter) == false {
 		return false
 	}
 
 	return true
-}
-
-func fieldListCompatibleExtra(fl1, fl2 *ast.FieldList) []*ast.Field {
-	numBefore := fl1.NumFields()
-
-	if fl2.NumFields() < numBefore {
-		return nil
-	}
-
-	for i := range fl1.List {
-		if isFieldCompatible(fl1.List[i], fl2.List[i]) == false {
-			return nil
-		}
-	}
-
-	// Types match so far
-
-	return fl2.List[numBefore:]
-}
-
-func isFieldCompatible(f1, f2 *ast.Field) bool {
-	return isTypeCompatible(f1.Type, f2.Type)
-}
-
-func isTypeCompatible(t1, t2 ast.Expr) bool {
-	return showNode(t1) == showNode(t2)
-	// switch t1 := t1.(type) {
-	// case *ast.StructType:
-	// case *ast.InterfaceType:
-	// default:
-	// }
 }

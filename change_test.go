@@ -2,81 +2,85 @@ package gompatible
 
 import (
 	"go/ast"
-	"go/doc"
 	"go/parser"
 	"go/token"
+	"golang.org/x/tools/go/types"
+	"log"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func docPackage(source string) (*doc.Package, error) {
+func typesPackage(source string) (*types.Package, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "x.go", source, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
 
-	pkg, _ := ast.NewPackage(fset, map[string]*ast.File{"x.go": file}, nil, nil)
-
-	return doc.New(pkg, "TODO: importPath", doc.Mode(0)), nil
+	conf := types.Config{
+		IgnoreFuncBodies: true,
+		Error: func(err error) {
+			log.Println(err)
+		},
+	}
+	return conf.Check("TEST", fset, []*ast.File{file}, nil)
 }
 
-func TestFuncChange(t *testing.T) {
-	pkg, _ := docPackage(`package t
-func Compatible1_A(n int)
-func Compatible1_B(n int)
+func TestFuncChange_IsCompatible(t *testing.T) {
+	pkg, err := typesPackage(`package TEST
+func Compatible1(n int)
+func Compatible1_(n int)
 
-func Compatible2_A(n int)
-func Compatible2_B(n int, opts ...string)
+func Compatible2(n int)
+func Compatible2_(n int, opts ...string)
 
-func Compatible3_A(n int)
-func Compatible3_B(n int) error
+func Compatible3(n int)
+func Compatible3_(n int) error
 
-func Breaking1_A(n int)
-func Breaking1_B(n int, b bool)
+func Compatible4(n int) error
+func Compatible4_(m int) error
 
-func Breaking2_A(n int) []bytes
-func Breaking2_B(n int) ([]bytes, error)
+func Breaking1(n int)
+func Breaking1_(n int, b bool)
+
+func Breaking2(n int) []byte
+func Breaking2_(n int) ([]byte, error)
+
+func Breaking3(n int, s string)
+func Breaking3_(n int)
+
+func Breaking4(n int) string
+func Breaking4_(n int) []byte
 `)
+	require.NoError(t, err)
 
-	funcs := map[string]*doc.Func{}
-	for _, f := range pkg.Funcs {
-		funcs[f.Name] = f
+	funcs := map[string]*types.Func{}
+	for _, name := range pkg.Scope().Names() {
+		obj := pkg.Scope().Lookup(name)
+		if f, ok := obj.(*types.Func); ok {
+			funcs[f.Name()] = f
+		}
 	}
 
-	compat1 := FuncChange{
-		Before: funcs["Compatible1_A"],
-		After:  funcs["Compatible1_B"],
+	for name := range funcs {
+		if strings.HasSuffix(name, "_") {
+			continue
+		}
+
+		change := FuncChange{
+			Before: funcs[name],
+			After:  funcs[name+"_"],
+		}
+
+		t.Log(ShowChange(change))
+
+		if strings.HasPrefix(name, "Compatible") {
+			assert.True(t, change.IsCompatible())
+		} else {
+			assert.False(t, change.IsCompatible())
+		}
 	}
-
-	assert.True(t, compat1.IsCompatible())
-
-	compat2 := FuncChange{
-		Before: funcs["Compatible2_A"],
-		After:  funcs["Compatible2_B"],
-	}
-
-	assert.True(t, compat2.IsCompatible())
-
-	compat3 := FuncChange{
-		Before: funcs["Compatible3_A"],
-		After:  funcs["Compatible3_B"],
-	}
-
-	assert.True(t, compat3.IsCompatible())
-
-	breaking1 := FuncChange{
-		Before: funcs["Breaking1_A"],
-		After:  funcs["Breaking1_B"],
-	}
-
-	assert.True(t, !breaking1.IsCompatible())
-
-	breaking2 := FuncChange{
-		Before: funcs["Breaking2_A"],
-		After:  funcs["Breaking2_B"],
-	}
-
-	assert.True(t, !breaking2.IsCompatible(), "Breaking2")
 }
