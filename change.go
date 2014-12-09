@@ -1,18 +1,12 @@
 package gompatible
 
 import (
-	"bytes"
-	"fmt"
-	"go/ast"
-	"go/printer"
-	"go/token"
-
 	"golang.org/x/tools/go/types"
 )
 
 type Change interface {
-	NodeBefore() types.Object
-	NodeAfter() types.Object
+	ObjectBefore() types.Object
+	ObjectAfter() types.Object
 	IsAdded() bool
 	IsRemoved() bool
 	IsUnchanged() bool
@@ -26,11 +20,11 @@ type FuncChange struct {
 	After  *types.Func
 }
 
-func (fc FuncChange) NodeBefore() types.Object {
+func (fc FuncChange) ObjectBefore() types.Object {
 	return fc.Before
 }
 
-func (fc FuncChange) NodeAfter() types.Object {
+func (fc FuncChange) ObjectAfter() types.Object {
 	return fc.After
 }
 
@@ -49,15 +43,15 @@ func (fc FuncChange) IsUnchanged() bool {
 func ShowChange(c Change) string {
 	switch {
 	case c.IsAdded():
-		return "+ " + c.NodeAfter().String()
+		return "+ " + c.ObjectAfter().String()
 	case c.IsRemoved():
-		return "- " + c.NodeBefore().String()
+		return "- " + c.ObjectBefore().String()
 	case c.IsUnchanged():
-		return "= " + c.NodeBefore().String()
+		return "= " + c.ObjectBefore().String()
 	case c.IsCompatible():
-		return "* " + c.NodeBefore().String() + " -> " + c.NodeAfter().String()
+		return "* " + c.ObjectBefore().String() + " -> " + c.ObjectAfter().String()
 	default:
-		return "! " + c.NodeBefore().String() + " -> " + c.NodeAfter().String()
+		return "! " + c.ObjectBefore().String() + " -> " + c.ObjectAfter().String()
 	}
 }
 
