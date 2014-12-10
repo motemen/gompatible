@@ -14,50 +14,31 @@ const (
 	ChangeBreaking
 )
 
+func (ck ChangeKind) String() string {
+	switch ck {
+	case ChangeUnchanged:
+		return "ChangeUnchanged"
+	case ChangeAdded:
+		return "ChangeAdded"
+	case ChangeRemoved:
+		return "ChangeRemoved"
+	case ChangeCompatible:
+		return "ChangeCompatible"
+	case ChangeBreaking:
+		return "ChangeBreaking"
+	}
+
+	return ""
+}
+
 type Change interface {
 	ObjectBefore() types.Object
 	ObjectAfter() types.Object
 	Kind() ChangeKind
 }
 
-var _ = Change((*FuncChange)(nil))
-
-type FuncChange struct {
-	Before *types.Func
-	After  *types.Func
-}
-
-func (fc FuncChange) ObjectBefore() types.Object {
-	return fc.Before
-}
-
-func (fc FuncChange) ObjectAfter() types.Object {
-	return fc.After
-}
-
-func (fc FuncChange) Kind() ChangeKind {
-	switch {
-	case fc.Before == nil && fc.After == nil:
-		// XXX
-		return ChangeUnchanged
-
-	case fc.Before == nil:
-		return ChangeAdded
-
-	case fc.After == nil:
-		return ChangeRemoved
-
-	case fc.Before.String() == fc.After.String():
-		return ChangeUnchanged
-
-	case fc.isCompatible():
-		return ChangeCompatible
-
-	default:
-		return ChangeBreaking
-	}
-}
 func ShowChange(c Change) string {
+	// TODO use types.ObjectString()
 	switch c.Kind() {
 	case ChangeAdded:
 		return "+ " + c.ObjectAfter().String()
@@ -72,93 +53,4 @@ func ShowChange(c Change) string {
 	default:
 		return "! " + c.ObjectBefore().String() + " -> " + c.ObjectAfter().String()
 	}
-}
-
-func sigParamsCompatible(s1, s2 *types.Signature) bool {
-	extra := tuplesCompatibleExtra(s1.Params(), s2.Params())
-
-	switch {
-	case extra == nil:
-		// s2 params is incompatible with s1 params
-		return false
-
-	case len(extra) == 0:
-		// s2 params is compatible with s1 params
-		return true
-
-	case len(extra) == 1:
-		// s2 params is compatible with s1 params with an extra variadic arg
-		if s1.Variadic() == false && s2.Variadic() == true {
-			return true
-		}
-	}
-
-	return false
-}
-
-func sigResultsCompatible(s1, s2 *types.Signature) bool {
-	if s1.Results().Len() == 0 {
-		return true
-	}
-
-	extra := tuplesCompatibleExtra(s1.Results(), s2.Results())
-
-	switch {
-	case extra == nil:
-		return false
-	case len(extra) == 0:
-		return true
-	}
-
-	return false
-}
-
-func tuplesCompatibleExtra(p1, p2 *types.Tuple) []*types.Var {
-	len1 := p1.Len()
-	len2 := p2.Len()
-
-	if len1 > len2 {
-		return nil
-	}
-
-	vars := make([]*types.Var, len2-len1)
-
-	for i := 0; i < len2; i++ {
-		if i < len1 {
-			v1 := p1.At(i)
-			v2 := p2.At(i)
-
-			if v1.Type().String() != v2.Type().String() {
-				return nil
-			}
-		} else {
-			v2 := p2.At(i)
-			vars[i-len1] = v2
-		}
-	}
-
-	return vars
-}
-
-func (fc FuncChange) isCompatible() bool {
-	if fc.Before == nil || fc.After == nil {
-		return false
-	}
-
-	typeBefore, typeAfter := fc.Before.Type(), fc.After.Type()
-	if typeBefore == nil || typeAfter == nil {
-		return false
-	}
-
-	sigBefore, sigAfter := typeBefore.(*types.Signature), typeAfter.(*types.Signature)
-
-	if sigParamsCompatible(sigBefore, sigAfter) == false {
-		return false
-	}
-
-	if sigResultsCompatible(sigBefore, sigAfter) == false {
-		return false
-	}
-
-	return true
 }

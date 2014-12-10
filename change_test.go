@@ -40,6 +40,21 @@ func Breaking2(n int) []byte
 func Breaking3(n int, s string)
 func Breaking4(n int) string
 func Removed1()
+
+type RemovedT1 bool
+type UnchangedT1 int
+type UnchangedT2 struct {
+	Foo string
+}
+type CompatibleT1 struct {
+	Foo string
+}
+type CompatibleT2 struct {
+	Foo string
+}
+type BreakingT1 struct {
+	XXX string
+}
 `)
 
 	pkg2, err := typesPackage(`package TEST
@@ -52,6 +67,23 @@ func Breaking2(n int) ([]byte, error)
 func Breaking3(n int)
 func Breaking4(n int) []byte
 func Added1()
+
+type UnchangedT1 int
+type UnchangedT2 struct {
+	Foo string
+}
+type CompatibleT1 struct {
+	Foo string
+	xxx interface{}
+}
+type CompatibleT2 struct {
+	Foo string
+	Bar bool
+}
+type BreakingT1 struct {
+	YYY int
+}
+type AddedT1 interface{}
 `)
 
 	require.NoError(t, err)
@@ -59,29 +91,38 @@ func Added1()
 	funcs1 := map[string]*types.Func{}
 	funcs2 := map[string]*types.Func{}
 
+	types1 := map[string]*types.TypeName{}
+	types2 := map[string]*types.TypeName{}
+
 	for _, name := range pkg1.Scope().Names() {
 		obj := pkg1.Scope().Lookup(name)
-		if f, ok := obj.(*types.Func); ok {
-			funcs1[f.Name()] = f
+		switch o := obj.(type) {
+		case *types.Func:
+			funcs1[o.Name()] = o
+		case *types.TypeName:
+			types1[o.Name()] = o
 		}
 	}
 
 	for _, name := range pkg2.Scope().Names() {
 		obj := pkg2.Scope().Lookup(name)
-		if f, ok := obj.(*types.Func); ok {
-			funcs2[f.Name()] = f
+		switch o := obj.(type) {
+		case *types.Func:
+			funcs2[o.Name()] = o
+		case *types.TypeName:
+			types2[o.Name()] = o
 		}
 	}
 
-	names := map[string]interface{}{}
+	funcNames := map[string]interface{}{}
 	for name := range funcs1 {
-		names[name] = nil
+		funcNames[name] = nil
 	}
 	for name := range funcs2 {
-		names[name] = nil
+		funcNames[name] = nil
 	}
 
-	for name := range names {
+	for name := range funcNames {
 		change := FuncChange{
 			Before: funcs1[name],
 			After:  funcs2[name],
@@ -100,5 +141,37 @@ func Added1()
 		} else {
 			assert.Equal(t, change.Kind(), ChangeBreaking)
 		}
+	}
+
+	typeNames := map[string]interface{}{}
+	for name := range types1 {
+		typeNames[name] = nil
+	}
+	for name := range types2 {
+		typeNames[name] = nil
+	}
+
+	for name := range typeNames {
+		change := TypeChange{
+			Before: types1[name],
+			After:  types2[name],
+		}
+
+		t.Log(ShowChange(change))
+
+		var expected ChangeKind
+		name = strings.TrimPrefix(name, "TEST.")
+		if strings.HasPrefix(name, "Unchanged") {
+			expected = ChangeUnchanged
+		} else if strings.HasPrefix(name, "Compatible") {
+			expected = ChangeCompatible
+		} else if strings.HasPrefix(name, "Added") {
+			expected = ChangeAdded
+		} else if strings.HasPrefix(name, "Removed") {
+			expected = ChangeRemoved
+		} else {
+			expected = ChangeBreaking
+		}
+		assert.Equal(t, expected, change.Kind(), name)
 	}
 }

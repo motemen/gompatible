@@ -1,0 +1,91 @@
+package gompatible
+
+import (
+	"golang.org/x/tools/go/types"
+)
+
+var _ = Change((*TypeChange)(nil))
+
+type TypeChange struct {
+	Before *types.TypeName
+	After  *types.TypeName
+}
+
+func (tc TypeChange) ObjectBefore() types.Object {
+	return tc.Before
+}
+
+func (tc TypeChange) ObjectAfter() types.Object {
+	return tc.After
+}
+
+func (tc TypeChange) Kind() ChangeKind {
+	switch {
+	case tc.Before == nil && tc.After == nil:
+		// XXX
+		return ChangeUnchanged
+
+	case tc.Before == nil:
+		return ChangeAdded
+
+	case tc.After == nil:
+		return ChangeRemoved
+
+	case tc.Before.Type().Underlying().String() == tc.After.Type().Underlying().String():
+		return ChangeUnchanged
+
+	case tc.isCompatible():
+		return ChangeCompatible
+
+	default:
+		return ChangeBreaking
+	}
+}
+
+// TODO byte <-> uint8, rune <-> int32
+func typesCompatible(t1, t2 types.Type) bool {
+	// If both types are struct, mark them comptabile
+	// iff their public field types are comptabile for each their names (order insensitive)
+
+	if s1, ok := t1.(*types.Struct); ok {
+		if s2, ok := t2.(*types.Struct); ok {
+			fields1 := map[string]*types.Var{}
+			fields2 := map[string]*types.Var{}
+
+			for i := 0; i < s1.NumFields(); i++ {
+				f := s1.Field(i)
+				if f.Exported() {
+					fields1[f.Name()] = f
+				}
+			}
+			for i := 0; i < s2.NumFields(); i++ {
+				f := s2.Field(i)
+				if f.Exported() {
+					fields2[f.Name()] = f
+				}
+			}
+
+			for name, f1 := range fields1 {
+				f2, ok := fields2[name]
+				// The new struct type should have fields
+				// which the old one had
+				if !ok {
+					return false
+				}
+
+				// recurse
+				if typesCompatible(f1.Type().Underlying(), f2.Type().Underlying()) == false {
+					return false
+				}
+			}
+
+			return true
+		}
+	}
+
+	return t1.String() == t2.String()
+}
+
+func (tc TypeChange) isCompatible() bool {
+	return typesCompatible(tc.Before.Type().Underlying(), tc.After.Type().Underlying())
+}
