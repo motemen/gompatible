@@ -56,6 +56,7 @@ type BreakingT1 struct {
 	XXX string
 }
 `)
+	require.NoError(t, err)
 
 	pkg2, err := typesPackage(`package TEST
 func Unchanged1(n int)
@@ -85,49 +86,10 @@ type BreakingT1 struct {
 }
 type AddedT1 interface{}
 `)
-
 	require.NoError(t, err)
 
-	funcs1 := map[string]*types.Func{}
-	funcs2 := map[string]*types.Func{}
-
-	types1 := map[string]*types.TypeName{}
-	types2 := map[string]*types.TypeName{}
-
-	for _, name := range pkg1.Scope().Names() {
-		obj := pkg1.Scope().Lookup(name)
-		switch o := obj.(type) {
-		case *types.Func:
-			funcs1[o.Name()] = o
-		case *types.TypeName:
-			types1[o.Name()] = o
-		}
-	}
-
-	for _, name := range pkg2.Scope().Names() {
-		obj := pkg2.Scope().Lookup(name)
-		switch o := obj.(type) {
-		case *types.Func:
-			funcs2[o.Name()] = o
-		case *types.TypeName:
-			types2[o.Name()] = o
-		}
-	}
-
-	funcNames := map[string]interface{}{}
-	for name := range funcs1 {
-		funcNames[name] = nil
-	}
-	for name := range funcs2 {
-		funcNames[name] = nil
-	}
-
-	for name := range funcNames {
-		change := FuncChange{
-			Before: funcs1[name],
-			After:  funcs2[name],
-		}
-
+	diff := DiffPackages(pkg1, pkg2)
+	for name, change := range diff.Funcs {
 		t.Log(ShowChange(change))
 
 		if strings.HasPrefix(name, "Unchanged") {
@@ -143,20 +105,7 @@ type AddedT1 interface{}
 		}
 	}
 
-	typeNames := map[string]interface{}{}
-	for name := range types1 {
-		typeNames[name] = nil
-	}
-	for name := range types2 {
-		typeNames[name] = nil
-	}
-
-	for name := range typeNames {
-		change := TypeChange{
-			Before: types1[name],
-			After:  types2[name],
-		}
-
+	for name, change := range diff.Types {
 		t.Log(ShowChange(change))
 
 		var expected ChangeKind
