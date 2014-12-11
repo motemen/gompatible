@@ -27,6 +27,9 @@ func DiffPackages(pkg1, pkg2 *types.Package) PackageChanges {
 
 	for _, name := range pkg1.Scope().Names() {
 		obj := pkg1.Scope().Lookup(name)
+		if !obj.Exported() {
+			continue
+		}
 		switch o := obj.(type) {
 		case *types.Func:
 			funcs1[o.Name()] = o
@@ -37,6 +40,9 @@ func DiffPackages(pkg1, pkg2 *types.Package) PackageChanges {
 
 	for _, name := range pkg2.Scope().Names() {
 		obj := pkg2.Scope().Lookup(name)
+		if !obj.Exported() {
+			continue
+		}
 		switch o := obj.(type) {
 		case *types.Func:
 			funcs2[o.Name()] = o

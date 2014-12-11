@@ -6,11 +6,15 @@ import (
 	"go/build"
 	"go/parser"
 	"go/token"
+	"io"
 	"log"
 	"os"
-	"os/exec"
+	_ "os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
 
+	"github.com/motemen/go-vcs-fs/git"
 	"github.com/motemen/gompatible"
 	_ "golang.org/x/tools/go/gcimporter"
 	"golang.org/x/tools/go/types"
@@ -18,8 +22,50 @@ import (
 
 //import "github.com/k0kubun/pp"
 
+var rxGitVirtDir = regexp.MustCompile(`^git:([^:]+):(.*)$`)
+
+func buildPackage(path string) (build.Context, *build.Package, error) {
+	ctx := build.Default
+
+	m := rxGitVirtDir.FindStringSubmatch(path)
+	if m != nil {
+		repo, err := git.NewRepository(m[1], "")
+		if err != nil {
+			return ctx, nil, err
+		}
+
+		path = m[2]
+		ctx.OpenFile = repo.Open
+		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
+			ff, err := repo.ReadDir(path)
+			return ff, err
+		}
+	}
+
+	var mode build.ImportMode
+	bPkg, err := ctx.ImportDir(path, mode)
+	return ctx, bPkg, err
+}
+
 func listGoSource(path string) ([]string, error) {
-	buildPkg, err := build.Default.ImportDir(path, build.ImportMode(0))
+	ctx := build.Default
+
+	m := rxGitVirtDir.FindStringSubmatch(path)
+	if m != nil {
+		repo, err := git.NewRepository(m[1], "")
+		if err != nil {
+			return nil, err
+		}
+
+		path = m[2]
+		ctx.OpenFile = repo.Open
+		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
+			ff, err := repo.ReadDir(path)
+			return ff, err
+		}
+	}
+
+	buildPkg, err := ctx.ImportDir(path, build.ImportMode(0))
 	if err != nil {
 		return nil, err
 	}
@@ -48,21 +94,34 @@ func typesPkg(dir string) (*types.Package, error) {
 		},
 	}
 
-	filepaths, err := listGoSource(dir)
+	ctx, bPkg, err := buildPackage(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	astFiles := []*ast.File{}
-	for _, filepath := range filepaths {
-		f, err := parser.ParseFile(fset, filepath, nil, parser.ParseComments)
-		if err != nil {
-			log.Fatal(err)
+	astFiles := make([]*ast.File, len(bPkg.GoFiles))
+	for i, file := range bPkg.GoFiles {
+		filepath := path.Join(bPkg.Dir, file)
+
+		var r io.Reader
+		if ctx.OpenFile != nil {
+			r, err = ctx.OpenFile(filepath)
+		} else {
+			r, err = os.Open(filepath)
 		}
-		astFiles = append(astFiles, f)
+		if err != nil {
+			return nil, err
+		}
+
+		astFile, err := parser.ParseFile(fset, filepath, r, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+
+		astFiles[i] = astFile
 	}
 
-	return conf.Check("", fset, astFiles, nil)
+	return conf.Check(bPkg.Name, fset, astFiles, nil)
 }
 
 func main() {
@@ -73,58 +132,19 @@ func main() {
 		after  = os.Args[2]
 	)
 
-	dir := "."
-	if len(os.Args) > 3 {
-		dir = os.Args[3]
-	}
-
-	dieIf(exec.Command("git", "checkout", before).Run())
-
-	pkg1, err := typesPkg(dir)
+	pkg1, err := typesPkg(before)
 	dieIf(err)
 
-	dieIf(exec.Command("git", "checkout", after).Run())
-
-	pkg2, err := typesPkg(dir)
+	pkg2, err := typesPkg(after)
 	dieIf(err)
 
-	funcs1 := map[string]*types.Func{}
-	funcs2 := map[string]*types.Func{}
+	diff := gompatible.DiffPackages(pkg1, pkg2)
 
-	for _, name := range pkg1.Scope().Names() {
-		obj := pkg1.Scope().Lookup(name)
-		if obj.Exported() == false {
-			continue
-		}
-		if f, ok := obj.(*types.Func); ok {
-			funcs1[f.Name()] = f
-		}
+	for _, change := range diff.Funcs {
+		fmt.Println(gompatible.ShowChange(change))
 	}
 
-	for _, name := range pkg2.Scope().Names() {
-		obj := pkg2.Scope().Lookup(name)
-		if obj.Exported() == false {
-			continue
-		}
-		if f, ok := obj.(*types.Func); ok {
-			funcs2[f.Name()] = f
-		}
-	}
-
-	names := map[string]interface{}{}
-	for name := range funcs1 {
-		names[name] = nil
-	}
-	for name := range funcs2 {
-		names[name] = nil
-	}
-
-	for name := range names {
-		change := gompatible.FuncChange{
-			Before: funcs1[name],
-			After:  funcs2[name],
-		}
-
+	for _, change := range diff.Types {
 		fmt.Println(gompatible.ShowChange(change))
 	}
 }
