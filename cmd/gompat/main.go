@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/motemen/gompatible"
 	_ "golang.org/x/tools/go/gcimporter"
@@ -20,39 +19,16 @@ import (
 //import "github.com/k0kubun/pp"
 
 func listGoSource(path string) ([]string, error) {
-	dir, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer dir.Close()
-
-	list, err := dir.Readdir(-1)
+	buildPkg, err := build.Default.ImportDir(path, build.ImportMode(0))
 	if err != nil {
 		return nil, err
 	}
 
-	ctx := build.Context{}
-
-	files := []string{}
-
-	for _, d := range list {
-		if strings.HasSuffix(d.Name(), "_test.go") {
-			continue
-		}
-
-		match, err := ctx.MatchFile(path, d.Name())
-		if err != nil {
-			return nil, err
-		}
-
-		if !match {
-			continue
-		}
-
-		filename := filepath.Join(path, d.Name())
-		files = append(files, filename)
+	goFiles := buildPkg.GoFiles
+	files := make([]string, len(goFiles))
+	for i, file := range goFiles {
+		files[i] = filepath.Join(buildPkg.Dir, file)
 	}
-
 	return files, nil
 }
 
