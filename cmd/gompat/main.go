@@ -11,7 +11,6 @@ import (
 	"os"
 	_ "os/exec"
 	"path"
-	"path/filepath"
 	"regexp"
 
 	"github.com/motemen/go-vcs-fs/git"
@@ -20,9 +19,13 @@ import (
 	"golang.org/x/tools/go/types"
 )
 
-//import "github.com/k0kubun/pp"
+var rxGitVirtDir = regexp.MustCompile(`^git:([^:]+):(.+)$`)
 
-var rxGitVirtDir = regexp.MustCompile(`^git:([^:]+):(.*)$`)
+func dieIf(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func buildPackage(path string) (build.Context, *build.Package, error) {
 	ctx := build.Default
@@ -35,7 +38,10 @@ func buildPackage(path string) (build.Context, *build.Package, error) {
 		}
 
 		path = m[2]
-		ctx.OpenFile = repo.Open
+		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
+			r, err := repo.Open(path)
+			return r, err
+		}
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
 			ff, err := repo.ReadDir(path)
 			return ff, err
@@ -47,44 +53,7 @@ func buildPackage(path string) (build.Context, *build.Package, error) {
 	return ctx, bPkg, err
 }
 
-func listGoSource(path string) ([]string, error) {
-	ctx := build.Default
-
-	m := rxGitVirtDir.FindStringSubmatch(path)
-	if m != nil {
-		repo, err := git.NewRepository(m[1], "")
-		if err != nil {
-			return nil, err
-		}
-
-		path = m[2]
-		ctx.OpenFile = repo.Open
-		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
-			ff, err := repo.ReadDir(path)
-			return ff, err
-		}
-	}
-
-	buildPkg, err := ctx.ImportDir(path, build.ImportMode(0))
-	if err != nil {
-		return nil, err
-	}
-
-	goFiles := buildPkg.GoFiles
-	files := make([]string, len(goFiles))
-	for i, file := range goFiles {
-		files[i] = filepath.Join(buildPkg.Dir, file)
-	}
-	return files, nil
-}
-
-func dieIf(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func typesPkg(dir string) (*types.Package, error) {
+func typesPackage(dir string) (*types.Package, error) {
 	fset := token.NewFileSet()
 
 	conf := types.Config{
@@ -132,10 +101,10 @@ func main() {
 		after  = os.Args[2]
 	)
 
-	pkg1, err := typesPkg(before)
+	pkg1, err := typesPackage(before)
 	dieIf(err)
 
-	pkg2, err := typesPkg(after)
+	pkg2, err := typesPackage(after)
 	dieIf(err)
 
 	diff := gompatible.DiffPackages(pkg1, pkg2)
