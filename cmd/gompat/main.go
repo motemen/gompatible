@@ -13,12 +13,14 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/motemen/go-vcs-fs/git"
 	"github.com/motemen/gompatible"
-	_ "golang.org/x/tools/go/gcimporter"
+
+	"sourcegraph.com/sourcegraph/go-vcs/vcs"
+	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/gitcmd"
+	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/hgcmd"
 )
 
-var rxGitVirtDir = regexp.MustCompile(`^git:([^:]+):(.+)$`)
+var rxVCSDir = regexp.MustCompile(`^(git|hg):([^:]+):(.+)$`)
 
 func dieIf(err error) {
 	if err != nil {
@@ -26,30 +28,43 @@ func dieIf(err error) {
 	}
 }
 
-func buildPackage(path string) (build.Context, *build.Package, error) {
+func buildPackage(path string) (*build.Context, *build.Package, error) {
 	ctx := build.Default
 
-	m := rxGitVirtDir.FindStringSubmatch(path)
+	m := rxVCSDir.FindStringSubmatch(path)
 	if m != nil {
-		repo, err := git.NewRepository(m[1], "")
+		vcsType := m[1]
+		rev := m[2]
+		path = m[3] // this should not be :=
+
+		repo, err := vcs.Open(vcsType, ".")
 		if err != nil {
-			return ctx, nil, err
+			return nil, nil, err
 		}
 
-		path = m[2]
+		commit, err := repo.ResolveRevision(rev)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		fs, err := repo.FileSystem(commit)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
-			r, err := repo.Open(path)
+			r, err := fs.Open(path)
 			return r, err
 		}
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
-			ff, err := repo.ReadDir(path)
+			ff, err := fs.ReadDir(path)
 			return ff, err
 		}
 	}
 
 	var mode build.ImportMode
 	bPkg, err := ctx.ImportDir(path, mode)
-	return ctx, bPkg, err
+	return &ctx, bPkg, err
 }
 
 func parseDir(dir string) (string, *token.FileSet, map[string]*ast.File, error) {
@@ -83,6 +98,15 @@ func parseDir(dir string) (string, *token.FileSet, map[string]*ast.File, error) 
 	return bPkg.Name, fset, files, nil
 }
 
+func parseDirToPackage(dir string) (*gompatible.Package, error) {
+	path, fset, files, err := parseDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	return gompatible.NewPackage(path, fset, files)
+}
+
 func main() {
 	var err error
 
@@ -91,16 +115,10 @@ func main() {
 		after  = os.Args[2]
 	)
 
-	path1, fset1, files1, err := parseDir(before)
+	pkg1, err := parseDirToPackage(before)
 	dieIf(err)
 
-	pkg1, err := gompatible.NewPackage(path1, fset1, files1)
-	dieIf(err)
-
-	path2, fset2, files2, err := parseDir(after)
-	dieIf(err)
-
-	pkg2, err := gompatible.NewPackage(path2, fset2, files2)
+	pkg2, err := parseDirToPackage(after)
 	dieIf(err)
 
 	diff := gompatible.DiffPackages(pkg1, pkg2)

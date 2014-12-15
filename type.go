@@ -1,6 +1,9 @@
 package gompatible
 
-import "golang.org/x/tools/go/types"
+import (
+	_ "golang.org/x/tools/go/gcimporter"
+	"golang.org/x/tools/go/types"
+)
 
 var _ = Change((*TypeChange)(nil))
 
