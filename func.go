@@ -1,22 +1,36 @@
 package gompatible
 
 import (
+	"bytes"
+	"go/printer"
+	"go/token"
 	"golang.org/x/tools/go/types"
 )
 
 var _ = Change((*FuncChange)(nil))
 
 type FuncChange struct {
-	Before *types.Func
-	After  *types.Func
+	Before *Func
+	After  *Func
 }
 
-func (fc FuncChange) ObjectBefore() types.Object {
-	return fc.Before
+func showASTNode(node interface{}, fset *token.FileSet) string {
+	if fset == nil {
+		fset = token.NewFileSet()
+	}
+	var buf bytes.Buffer
+	printer.Fprint(&buf, fset, node)
+	return buf.String()
 }
 
-func (fc FuncChange) ObjectAfter() types.Object {
-	return fc.After
+func (fc FuncChange) ShowBefore() string {
+	f := fc.Before
+	return showASTNode(f.Doc.Decl, f.Package.Fset)
+}
+
+func (fc FuncChange) ShowAfter() string {
+	f := fc.After
+	return showASTNode(f.Doc.Decl, f.Package.Fset)
 }
 
 func (fc FuncChange) Kind() ChangeKind {
@@ -31,7 +45,7 @@ func (fc FuncChange) Kind() ChangeKind {
 	case fc.After == nil:
 		return ChangeRemoved
 
-	case fc.Before.String() == fc.After.String():
+	case fc.Before.Types.String() == fc.After.Types.String():
 		return ChangeUnchanged
 
 	case fc.isCompatible():
@@ -113,7 +127,7 @@ func (fc FuncChange) isCompatible() bool {
 		return false
 	}
 
-	typeBefore, typeAfter := fc.Before.Type(), fc.After.Type()
+	typeBefore, typeAfter := fc.Before.Types.Type(), fc.After.Types.Type()
 	if typeBefore == nil || typeAfter == nil {
 		return false
 	}

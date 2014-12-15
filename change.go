@@ -1,9 +1,5 @@
 package gompatible
 
-import (
-	"golang.org/x/tools/go/types"
-)
-
 type ChangeKind int
 
 const (
@@ -32,8 +28,8 @@ func (ck ChangeKind) String() string {
 }
 
 type Change interface {
-	ObjectBefore() types.Object
-	ObjectAfter() types.Object
+	ShowBefore() string
+	ShowAfter() string
 	Kind() ChangeKind
 }
 
@@ -41,16 +37,16 @@ func ShowChange(c Change) string {
 	// TODO simplify packages
 	switch c.Kind() {
 	case ChangeAdded:
-		return "+ " + c.ObjectAfter().String()
+		return "+ " + c.ShowAfter()
 	case ChangeRemoved:
-		return "- " + c.ObjectBefore().String()
+		return "- " + c.ShowBefore()
 	case ChangeUnchanged:
-		return "= " + c.ObjectBefore().String()
+		return "= " + c.ShowBefore()
 	case ChangeCompatible:
-		return "* " + c.ObjectBefore().String() + " -> " + c.ObjectAfter().String()
+		return "* " + c.ShowBefore() + " -> " + c.ShowAfter()
 	case ChangeBreaking:
 		fallthrough
 	default:
-		return "! " + c.ObjectBefore().String() + " -> " + c.ObjectAfter().String()
+		return "! " + c.ShowBefore() + " -> " + c.ShowAfter()
 	}
 }

@@ -1,22 +1,22 @@
 package gompatible
 
-import (
-	"golang.org/x/tools/go/types"
-)
+import "golang.org/x/tools/go/types"
 
 var _ = Change((*TypeChange)(nil))
 
 type TypeChange struct {
-	Before *types.TypeName
-	After  *types.TypeName
+	Before *Type
+	After  *Type
 }
 
-func (tc TypeChange) ObjectBefore() types.Object {
-	return tc.Before
+func (tc TypeChange) ShowBefore() string {
+	t := tc.Before
+	return showASTNode(t.Doc.Decl, t.Package.Fset)
 }
 
-func (tc TypeChange) ObjectAfter() types.Object {
-	return tc.After
+func (tc TypeChange) ShowAfter() string {
+	t := tc.After
+	return showASTNode(t.Doc.Decl, t.Package.Fset)
 }
 
 func (tc TypeChange) Kind() ChangeKind {
@@ -31,7 +31,7 @@ func (tc TypeChange) Kind() ChangeKind {
 	case tc.After == nil:
 		return ChangeRemoved
 
-	case tc.Before.Type().Underlying().String() == tc.After.Type().Underlying().String():
+	case tc.Before.Types.Type().Underlying().String() == tc.After.Types.Type().Underlying().String():
 		return ChangeUnchanged
 
 	case tc.isCompatible():
@@ -87,5 +87,5 @@ func typesCompatible(t1, t2 types.Type) bool {
 }
 
 func (tc TypeChange) isCompatible() bool {
-	return typesCompatible(tc.Before.Type().Underlying(), tc.After.Type().Underlying())
+	return typesCompatible(tc.Before.Types.Type().Underlying(), tc.After.Types.Type().Underlying())
 }

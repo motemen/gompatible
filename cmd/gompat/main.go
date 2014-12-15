@@ -53,6 +53,37 @@ func buildPackage(path string) (build.Context, *build.Package, error) {
 	return ctx, bPkg, err
 }
 
+func parseFiles(dir string) (string, *token.FileSet, map[string]*ast.File, error) {
+	fset := token.NewFileSet()
+
+	ctx, bPkg, err := buildPackage(dir)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	files := map[string]*ast.File{}
+	for _, file := range bPkg.GoFiles {
+		filepath := path.Join(bPkg.Dir, file)
+
+		var r io.Reader
+		if ctx.OpenFile != nil {
+			r, err = ctx.OpenFile(filepath)
+		} else {
+			r, err = os.Open(filepath)
+		}
+		if err != nil {
+			return "", nil, nil, err
+		}
+
+		files[file], err = parser.ParseFile(fset, filepath, r, parser.ParseComments)
+		if err != nil {
+			return "", nil, nil, err
+		}
+	}
+
+	return bPkg.Name, fset, files, nil
+}
+
 func typesPackage(dir string) (*types.Package, error) {
 	fset := token.NewFileSet()
 
@@ -101,10 +132,18 @@ func main() {
 		after  = os.Args[2]
 	)
 
-	pkg1, err := typesPackage(before)
+	path1, fset1, files1, err := parseFiles(before)
+	// pkg1, err := typesPackage(before)
 	dieIf(err)
 
-	pkg2, err := typesPackage(after)
+	pkg1, err := gompatible.NewPackage(path1, fset1, files1)
+	dieIf(err)
+
+	path2, fset2, files2, err := parseFiles(after)
+	// pkg2, err := typesPackage(after)
+	dieIf(err)
+
+	pkg2, err := gompatible.NewPackage(path2, fset2, files2)
 	dieIf(err)
 
 	diff := gompatible.DiffPackages(pkg1, pkg2)

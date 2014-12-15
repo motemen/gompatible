@@ -1,85 +1,55 @@
 package gompatible
 
-import (
-	"golang.org/x/tools/go/types"
-)
-
 type PackageChanges struct {
-	Before *types.Package
-	After  *types.Package
+	Before *Package
+	After  *Package
 	Funcs  map[string]FuncChange
 	Types  map[string]TypeChange
 }
 
-func DiffPackages(pkg1, pkg2 *types.Package) PackageChanges {
-	pc := PackageChanges{
+func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
+	diff := PackageChanges{
 		Before: pkg1,
 		After:  pkg2,
 		Funcs:  map[string]FuncChange{},
 		Types:  map[string]TypeChange{},
 	}
 
-	funcs1 := map[string]*types.Func{}
-	funcs2 := map[string]*types.Func{}
-
-	types1 := map[string]*types.TypeName{}
-	types2 := map[string]*types.TypeName{}
-
-	for _, name := range pkg1.Scope().Names() {
-		obj := pkg1.Scope().Lookup(name)
-		if !obj.Exported() {
-			continue
-		}
-		switch o := obj.(type) {
-		case *types.Func:
-			funcs1[o.Name()] = o
-		case *types.TypeName:
-			types1[o.Name()] = o
+	for _, name := range union(pkg1.FuncNames(), pkg2.FuncNames()) {
+		diff.Funcs[name] = FuncChange{
+			Before: pkg1.Func(name),
+			After:  pkg2.Func(name),
 		}
 	}
 
-	for _, name := range pkg2.Scope().Names() {
-		obj := pkg2.Scope().Lookup(name)
-		if !obj.Exported() {
-			continue
-		}
-		switch o := obj.(type) {
-		case *types.Func:
-			funcs2[o.Name()] = o
-		case *types.TypeName:
-			types2[o.Name()] = o
+	for _, name := range union(pkg1.TypeNames(), pkg2.TypeNames()) {
+		diff.Types[name] = TypeChange{
+			Before: pkg1.Type(name),
+			After:  pkg2.Type(name),
 		}
 	}
 
-	funcNames := map[string]interface{}{}
-	for name := range funcs1 {
-		funcNames[name] = nil
-	}
-	for name := range funcs2 {
-		funcNames[name] = nil
-	}
+	return diff
+}
 
-	for name := range funcNames {
-		pc.Funcs[name] = FuncChange{
-			Before: funcs1[name],
-			After:  funcs2[name],
+func union(ss ...[]string) []string {
+	union := []string{}
+	seen := map[string]bool{}
+
+	for _, s := range ss {
+		for _, str := range s {
+			if seen[str] == false {
+				seen[str] = true
+				union = append(union, str)
+			}
 		}
 	}
 
-	typeNames := map[string]interface{}{}
-	for name := range types1 {
-		typeNames[name] = nil
-	}
-	for name := range types2 {
-		typeNames[name] = nil
-	}
-
-	for name := range typeNames {
-		pc.Types[name] = TypeChange{
-			Before: types1[name],
-			After:  types2[name],
-		}
-	}
-
-	return pc
+	return union
+}
+func (pc PackageChanges) funcNames() []string {
+	return append(
+		pc.Before.FuncNames(),
+		pc.After.FuncNames()...,
+	)
 }
