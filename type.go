@@ -11,12 +11,12 @@ type TypeChange struct {
 
 func (tc TypeChange) ShowBefore() string {
 	t := tc.Before
-	return showASTNode(t.Doc.Decl, t.Package.Fset)
+	return t.Package.showASTNode(t.Doc.Decl)
 }
 
 func (tc TypeChange) ShowAfter() string {
 	t := tc.After
-	return showASTNode(t.Doc.Decl, t.Package.Fset)
+	return t.Package.showASTNode(t.Doc.Decl)
 }
 
 func (tc TypeChange) Kind() ChangeKind {

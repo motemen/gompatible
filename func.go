@@ -1,11 +1,6 @@
 package gompatible
 
-import (
-	"bytes"
-	"go/printer"
-	"go/token"
-	"golang.org/x/tools/go/types"
-)
+import "golang.org/x/tools/go/types"
 
 var _ = Change((*FuncChange)(nil))
 
@@ -14,23 +9,14 @@ type FuncChange struct {
 	After  *Func
 }
 
-func showASTNode(node interface{}, fset *token.FileSet) string {
-	if fset == nil {
-		fset = token.NewFileSet()
-	}
-	var buf bytes.Buffer
-	printer.Fprint(&buf, fset, node)
-	return buf.String()
-}
-
 func (fc FuncChange) ShowBefore() string {
 	f := fc.Before
-	return showASTNode(f.Doc.Decl, f.Package.Fset)
+	return f.Package.showASTNode(f.Doc.Decl)
 }
 
 func (fc FuncChange) ShowAfter() string {
 	f := fc.After
-	return showASTNode(f.Doc.Decl, f.Package.Fset)
+	return f.Package.showASTNode(f.Doc.Decl)
 }
 
 func (fc FuncChange) Kind() ChangeKind {

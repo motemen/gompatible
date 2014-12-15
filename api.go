@@ -1,8 +1,10 @@
 package gompatible
 
 import (
+	"bytes"
 	"go/ast"
 	"go/doc"
+	"go/printer"
 	"go/token"
 
 	"golang.org/x/tools/go/types"
@@ -147,4 +149,10 @@ func (p Package) buildTypes() map[string]*Type {
 	}
 
 	return p.types
+}
+
+func (p Package) showASTNode(node interface{}) string {
+	var buf bytes.Buffer
+	printer.Fprint(&buf, p.Fset, node)
+	return buf.String()
 }
