@@ -1,17 +1,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/build"
 	"go/parser"
 	"go/token"
 	"io"
-	"log"
 	"os"
 	"path"
-	"regexp"
-	"sort"
+	"strings"
 
 	"github.com/motemen/gompatible"
 
@@ -20,36 +19,39 @@ import (
 	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/hgcmd"
 )
 
-var rxVCSDir = regexp.MustCompile(`^(git|hg):([^:]+):(.+)$`)
-
-func dieIf(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
+type dirSpec struct {
+	vcs      string
+	revision string
+	path     string
 }
 
-func buildPackage(path string) (*build.Context, *build.Package, error) {
+func (d dirSpec) String() string {
+	return fmt.Sprint("%s:%s:%s", d.vcs, d.revision, d.path)
+}
+
+type packageFiles struct {
+	packageName string
+	fset        *token.FileSet
+	files       map[string]*ast.File
+}
+
+func buildContext(dir dirSpec) (*build.Context, error) {
 	ctx := build.Default
 
-	m := rxVCSDir.FindStringSubmatch(path)
-	if m != nil {
-		vcsType := m[1]
-		rev := m[2]
-		path = m[3] // this should not be :=
-
-		repo, err := vcs.Open(vcsType, ".")
+	if dir.vcs != "" && dir.revision != "" {
+		repo, err := vcs.Open(dir.vcs, ".")
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		commit, err := repo.ResolveRevision(rev)
+		commit, err := repo.ResolveRevision(dir.revision)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		fs, err := repo.FileSystem(commit)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
@@ -62,22 +64,26 @@ func buildPackage(path string) (*build.Context, *build.Package, error) {
 		}
 	}
 
-	var mode build.ImportMode
-	bPkg, err := ctx.ImportDir(path, mode)
-	return &ctx, bPkg, err
+	return &ctx, nil
 }
 
-func parseDir(dir string) (string, *token.FileSet, map[string]*ast.File, error) {
+func parseDir(dir dirSpec) (*packageFiles, error) {
 	fset := token.NewFileSet()
 
-	ctx, bPkg, err := buildPackage(dir)
+	ctx, err := buildContext(dir)
 	if err != nil {
-		return "", nil, nil, err
+		return nil, err
+	}
+
+	var mode build.ImportMode
+	pkg, err := ctx.ImportDir(dir.path, mode)
+	if err != nil {
+		return nil, err
 	}
 
 	files := map[string]*ast.File{}
-	for _, file := range bPkg.GoFiles {
-		filepath := path.Join(bPkg.Dir, file)
+	for _, file := range pkg.GoFiles {
+		filepath := path.Join(pkg.Dir, file)
 
 		var r io.Reader
 		if ctx.OpenFile != nil {
@@ -86,81 +92,77 @@ func parseDir(dir string) (string, *token.FileSet, map[string]*ast.File, error) 
 			r, err = os.Open(filepath)
 		}
 		if err != nil {
-			return "", nil, nil, err
+			return nil, err
 		}
 
 		files[file], err = parser.ParseFile(fset, filepath, r, parser.ParseComments)
 		if err != nil {
-			return "", nil, nil, err
+			return nil, err
 		}
 	}
 
-	return bPkg.Name, fset, files, nil
+	return &packageFiles{
+		packageName: pkg.Name,
+		fset:        fset,
+		files:       files,
+	}, nil
 }
 
-func parseDirToPackage(dir string) (*gompatible.Package, error) {
-	path, fset, files, err := parseDir(dir)
+func parseDirToPackage(dir dirSpec) (*gompatible.Package, error) {
+	pkgFiles, err := parseDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	return gompatible.NewPackage(path, fset, files)
+	return gompatible.NewPackage(pkgFiles.packageName, pkgFiles.fset, pkgFiles.files)
 }
 
+func usage() {
+	fmt.Printf("Usage: %s <rev1>[..<rev2>] [<path>]\n", os.Args[0])
+	os.Exit(1)
+}
+
+// gompat <rev1>[..<rev2>] <path>
 func main() {
-	var err error
+	flagAll := flag.Bool("a", false, "show also unchanged APIs")
+	flag.Parse()
 
-	var (
-		before = os.Args[1]
-		after  = os.Args[2]
-	)
+	args := flag.Args()
+	if len(args) < 1 {
+		usage()
+	}
 
-	pkg1, err := parseDirToPackage(before)
+	vcsType := "git" // TODO auto-detect
+
+	revs := strings.Split(args[0], "..")
+	if len(revs) < 2 || revs[1] == "" {
+		revs = []string{revs[0], ""}
+	}
+
+	path := "."
+	if len(args) >= 2 {
+		path = args[1]
+	}
+
+	pkg1, err := parseDirToPackage(dirSpec{vcs: vcsType, revision: revs[0], path: path})
 	dieIf(err)
 
-	pkg2, err := parseDirToPackage(after)
+	pkg2, err := parseDirToPackage(dirSpec{vcs: vcsType, revision: revs[1], path: path})
 	dieIf(err)
 
 	diff := gompatible.DiffPackages(pkg1, pkg2)
 
 	forEachName(byFuncName(diff.Funcs), func(name string) {
-		fmt.Println(gompatible.ShowChange(diff.Funcs[name]))
+		change := diff.Funcs[name]
+		if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
+			fmt.Println(gompatible.ShowChange(change))
+		}
 	})
 
 	forEachName(byTypeName(diff.Types), func(name string) {
-		fmt.Println(gompatible.ShowChange(diff.Types[name]))
+		change := diff.Types[name]
+		if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
+			fmt.Println(gompatible.ShowChange(change))
+		}
 	})
-
-}
-
-func forEachName(gen namesYielder, f func(string)) {
-	names := []string{}
-	gen.yieldNames(func(name string) {
-		names = append(names, name)
-	})
-	sort.Strings(names)
-
-	for _, name := range names {
-		f(name)
-	}
-}
-
-type namesYielder interface {
-	yieldNames(func(string))
-}
-
-type byFuncName map[string]gompatible.FuncChange
-
-func (b byFuncName) yieldNames(yield func(string)) {
-	for name := range b {
-		yield(name)
-	}
-}
-
-type byTypeName map[string]gompatible.TypeChange
-
-func (b byTypeName) yieldNames(yield func(string)) {
-	for name := range b {
-		yield(name)
-	}
 }
