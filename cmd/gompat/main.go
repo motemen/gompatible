@@ -31,7 +31,11 @@ type dirSpec struct {
 }
 
 func (d dirSpec) String() string {
-	return fmt.Sprint("%s:%s:%s", d.vcs, d.revision, d.path)
+	if d.vcs == "" || d.revision == "" {
+		return d.path
+	}
+
+	return fmt.Sprintf("%s:%s:%s", d.vcs, d.revision, d.path)
 }
 
 func (d dirSpec) subdir(name string) dirSpec {
@@ -93,6 +97,7 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 					return nil, err
 				}
 			}
+			fmt.Printf("OpenFile: %s reporoot=%s\n", path, repoRoot)
 			return fs.Open(path)
 		}
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
@@ -110,7 +115,7 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 	return &ctx, nil
 }
 
-func loadPackagesRecurse(dir dirSpec) (map[string]*gompatible.Package, error) {
+func loadPackages(dir dirSpec, recurse bool) (map[string]*gompatible.Package, error) {
 	ctx, err := dir.buildContext()
 	if err != nil {
 		return nil, err
@@ -125,15 +130,19 @@ func loadPackagesRecurse(dir dirSpec) (map[string]*gompatible.Package, error) {
 
 	packages := map[string]*gompatible.Package{}
 
-	p, err := loadPackage(dir)
+	p, err := loadSinglePackage(dir)
 	if err != nil {
 		if _, ok := err.(*build.NoGoError); ok {
 			// nop
 		} else {
-			return nil, err
+			return nil, fmt.Errorf("while loading %s: %s", dir, err)
 		}
 	} else {
 		packages[p.Types.Path()] = p
+	}
+
+	if recurse == false {
+		return packages, nil
 	}
 
 	entries, err := readDir(dir.path)
@@ -146,7 +155,11 @@ func loadPackagesRecurse(dir dirSpec) (map[string]*gompatible.Package, error) {
 			continue
 		}
 
-		pkgs, err := loadPackagesRecurse(dir.subdir(e.Name()))
+		if name := e.Name(); name[0] == '.' || name[0] == '_' {
+			continue
+		}
+
+		pkgs, err := loadPackages(dir.subdir(e.Name()), recurse)
 		if err != nil {
 			return nil, err
 		}
@@ -158,9 +171,8 @@ func loadPackagesRecurse(dir dirSpec) (map[string]*gompatible.Package, error) {
 	return packages, nil
 }
 
-// loadPackage parses .go sources under the dirSpec dir (not recursively)
-// and returns a *gompatible.Package.
-func loadPackage(dir dirSpec) (*gompatible.Package, error) {
+// loadSinglePackage parses .go sources under the dirSpec dir for a single *gompatible.Package.
+func loadSinglePackage(dir dirSpec) (*gompatible.Package, error) {
 	ctx, err := dir.buildContext()
 	if err != nil {
 		return nil, err
@@ -203,8 +215,8 @@ func usage() {
 
 func main() {
 	var (
-		flagAll = flag.Bool("a", false, "show also unchanged APIs")
-		// flagRecurse = flag.Bool("r", false, "recurse into subdirectories")
+		flagAll     = flag.Bool("a", false, "show also unchanged APIs")
+		flagRecurse = flag.Bool("r", false, "recurse into subdirectories")
 	)
 	flag.Parse()
 
@@ -224,6 +236,11 @@ func main() {
 	if len(args) >= 2 {
 		path = args[1]
 
+		if strings.HasSuffix(path, "...") {
+			path = strings.TrimSuffix(path, "...")
+			*flagRecurse = true
+		}
+
 		if build.IsLocalImport(path) == false {
 			for _, srcDir := range build.Default.SrcDirs() {
 				pkgPath := filepath.Join(srcDir, path)
@@ -235,25 +252,43 @@ func main() {
 		}
 	}
 
-	pkg1, err := loadPackage(dirSpec{vcs: vcsType, revision: revs[0], path: path})
+	pkgs1, err := loadPackages(dirSpec{vcs: vcsType, revision: revs[0], path: path}, *flagRecurse)
 	dieIf(err)
 
-	pkg2, err := loadPackage(dirSpec{vcs: vcsType, revision: revs[1], path: path})
+	pkgs2, err := loadPackages(dirSpec{vcs: vcsType, revision: revs[1], path: path}, *flagRecurse)
 	dieIf(err)
 
-	diff := gompatible.DiffPackages(pkg1, pkg2)
+	diffs := map[string]gompatible.PackageChanges{}
 
-	forEachString(funcNames(diff.Funcs)).do(func(name string) {
-		change := diff.Funcs[name]
-		if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
-			fmt.Println(gompatible.ShowChange(change))
-		}
+	forEachString(pkgNames(pkgs1), pkgNames(pkgs2)).do(func(name string) {
+		diffs[name] = gompatible.DiffPackages(
+			pkgs1[name], pkgs2[name],
+		)
 	})
 
-	forEachString(typeNames(diff.Types)).do(func(name string) {
-		change := diff.Types[name]
-		if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
-			fmt.Println(gompatible.ShowChange(change))
+	for name, diff := range diffs {
+		var headerShown bool
+		showHeader := func() {
+			if !headerShown {
+				fmt.Printf("package %s\n", name)
+				headerShown = true
+			}
 		}
-	})
+
+		forEachString(funcNames(diff.Funcs)).do(func(name string) {
+			change := diff.Funcs[name]
+			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
+				showHeader()
+				fmt.Println(gompatible.ShowChange(change))
+			}
+		})
+
+		forEachString(typeNames(diff.Types)).do(func(name string) {
+			change := diff.Types[name]
+			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
+				showHeader()
+				fmt.Println(gompatible.ShowChange(change))
+			}
+		})
+	}
 }

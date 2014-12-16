@@ -58,6 +58,14 @@ func (b typeNames) yieldStrings(yield func(string)) {
 	}
 }
 
+type pkgNames map[string]*gompatible.Package
+
+func (b pkgNames) yieldStrings(yield func(string)) {
+	for name := range b {
+		yield(name)
+	}
+}
+
 func dieIf(err error) {
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
