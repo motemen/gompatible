@@ -8,8 +8,11 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/motemen/gompatible"
@@ -23,10 +26,29 @@ type dirSpec struct {
 	vcs      string
 	revision string
 	path     string
+
+	ctx *build.Context
 }
 
 func (d dirSpec) String() string {
 	return fmt.Sprint("%s:%s:%s", d.vcs, d.revision, d.path)
+}
+
+func (d dirSpec) subdir(name string) dirSpec {
+	dupped := d
+	dupped.path = path.Join(d.path, name) // TODO use ctx.JoinPath
+	return dupped
+}
+
+func (d dirSpec) buildContext() (*build.Context, error) {
+	if d.ctx != nil {
+		return d.ctx, nil
+	}
+
+	var err error
+	d.ctx, err = buildContext(d)
+
+	return d.ctx, err
 }
 
 type packageFiles struct {
@@ -39,7 +61,15 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 	ctx := build.Default
 
 	if dir.vcs != "" && dir.revision != "" {
-		repo, err := vcs.Open(dir.vcs, ".")
+		cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+		cmd.Dir = dir.path
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, err
+		}
+
+		repoRoot := strings.TrimRight(string(out), "\n")
+		repo, err := vcs.Open(dir.vcs, repoRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -55,22 +85,83 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 		}
 
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
-			r, err := fs.Open(path)
-			return r, err
+			// TODO use ctx.IsAbsPath
+			if filepath.IsAbs(path) {
+				var err error
+				path, err = filepath.Rel(repoRoot, path)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return fs.Open(path)
 		}
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
-			ff, err := fs.ReadDir(path)
-			return ff, err
+			if filepath.IsAbs(path) {
+				var err error
+				path, err = filepath.Rel(repoRoot, path)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return fs.ReadDir(path)
 		}
 	}
 
 	return &ctx, nil
 }
 
-func parseDir(dir dirSpec) (*packageFiles, error) {
-	fset := token.NewFileSet()
+func loadPackagesRecurse(dir dirSpec) (map[string]*gompatible.Package, error) {
+	ctx, err := dir.buildContext()
+	if err != nil {
+		return nil, err
+	}
 
-	ctx, err := buildContext(dir)
+	var readDir func(string) ([]os.FileInfo, error)
+	if ctx.ReadDir != nil {
+		readDir = ctx.ReadDir
+	} else {
+		readDir = ioutil.ReadDir
+	}
+
+	packages := map[string]*gompatible.Package{}
+
+	p, err := loadPackage(dir)
+	if err != nil {
+		if _, ok := err.(*build.NoGoError); ok {
+			// nop
+		} else {
+			return nil, err
+		}
+	} else {
+		packages[p.Types.Path()] = p
+	}
+
+	entries, err := readDir(dir.path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, e := range entries {
+		if e.IsDir() == false {
+			continue
+		}
+
+		pkgs, err := loadPackagesRecurse(dir.subdir(e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		for name, p := range pkgs {
+			packages[name] = p
+		}
+	}
+
+	return packages, nil
+}
+
+// loadPackage parses .go sources under the dirSpec dir (not recursively)
+// and returns a *gompatible.Package.
+func loadPackage(dir dirSpec) (*gompatible.Package, error) {
+	ctx, err := dir.buildContext()
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +172,7 @@ func parseDir(dir dirSpec) (*packageFiles, error) {
 		return nil, err
 	}
 
+	fset := token.NewFileSet()
 	files := map[string]*ast.File{}
 	for _, file := range pkg.GoFiles {
 		filepath := path.Join(pkg.Dir, file)
@@ -101,20 +193,7 @@ func parseDir(dir dirSpec) (*packageFiles, error) {
 		}
 	}
 
-	return &packageFiles{
-		packageName: pkg.Name,
-		fset:        fset,
-		files:       files,
-	}, nil
-}
-
-func parseDirToPackage(dir dirSpec) (*gompatible.Package, error) {
-	pkgFiles, err := parseDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	return gompatible.NewPackage(pkgFiles.packageName, pkgFiles.fset, pkgFiles.files)
+	return gompatible.NewPackage(pkg.Name, fset, files)
 }
 
 func usage() {
@@ -122,9 +201,11 @@ func usage() {
 	os.Exit(1)
 }
 
-// gompat <rev1>[..<rev2>] <path>
 func main() {
-	flagAll := flag.Bool("a", false, "show also unchanged APIs")
+	var (
+		flagAll = flag.Bool("a", false, "show also unchanged APIs")
+		// flagRecurse = flag.Bool("r", false, "recurse into subdirectories")
+	)
 	flag.Parse()
 
 	args := flag.Args()
@@ -142,24 +223,34 @@ func main() {
 	path := "."
 	if len(args) >= 2 {
 		path = args[1]
+
+		if build.IsLocalImport(path) == false {
+			for _, srcDir := range build.Default.SrcDirs() {
+				pkgPath := filepath.Join(srcDir, path)
+				if _, err := os.Stat(pkgPath); err == nil {
+					path = pkgPath
+					break
+				}
+			}
+		}
 	}
 
-	pkg1, err := parseDirToPackage(dirSpec{vcs: vcsType, revision: revs[0], path: path})
+	pkg1, err := loadPackage(dirSpec{vcs: vcsType, revision: revs[0], path: path})
 	dieIf(err)
 
-	pkg2, err := parseDirToPackage(dirSpec{vcs: vcsType, revision: revs[1], path: path})
+	pkg2, err := loadPackage(dirSpec{vcs: vcsType, revision: revs[1], path: path})
 	dieIf(err)
 
 	diff := gompatible.DiffPackages(pkg1, pkg2)
 
-	forEachName(byFuncName(diff.Funcs), func(name string) {
+	forEachString(funcNames(diff.Funcs)).do(func(name string) {
 		change := diff.Funcs[name]
 		if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 			fmt.Println(gompatible.ShowChange(change))
 		}
 	})
 
-	forEachName(byTypeName(diff.Types), func(name string) {
+	forEachString(typeNames(diff.Types)).do(func(name string) {
 		change := diff.Types[name]
 		if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 			fmt.Println(gompatible.ShowChange(change))
