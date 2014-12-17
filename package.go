@@ -3,10 +3,13 @@ package gompatible
 import (
 	"bytes"
 	"go/ast"
+	"go/build"
 	"go/doc"
+	"go/parser"
 	"go/printer"
 	"go/token"
 
+	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/types"
 )
 
@@ -29,6 +32,42 @@ type Type struct {
 	Package *Package
 	Doc     *doc.Type
 	Types   *types.TypeName
+}
+
+func LoadPackage(ctx *build.Context, path string, filepaths []string) (*Package, error) {
+	conf := &loader.Config{
+		Build:               ctx,
+		ParserMode:          parser.ParseComments,
+		TypeCheckFuncBodies: func(_ string) bool { return false },
+		// SourceImports:       true,
+	}
+	err := conf.CreateFromFilenames(path, filepaths...)
+	if err != nil {
+		return nil, err
+	}
+	prog, err := conf.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	pkgInfo := prog.Created[0]
+
+	// Ignore (perhaps) "unresolved identifier" errors
+	files := map[string]*ast.File{}
+	for _, f := range pkgInfo.Files {
+		files[prog.Fset.File(f.Pos()).Name()] = f
+
+	}
+	astPkg, _ := ast.NewPackage(prog.Fset, files, nil, nil)
+
+	var mode doc.Mode
+	docPkg := doc.New(astPkg, path, mode)
+
+	return &Package{
+		Fset:  prog.Fset,
+		Doc:   docPkg,
+		Types: pkgInfo.Pkg,
+	}, nil
 }
 
 func NewPackage(path string, fset *token.FileSet, files map[string]*ast.File) (*Package, error) {

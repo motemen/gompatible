@@ -91,22 +91,33 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 			// TODO use ctx.IsAbsPath
 			if filepath.IsAbs(path) {
-				var err error
-				path, err = filepath.Rel(repoRoot, path)
-				if err != nil {
-					return nil, err
+				// the path maybe outside of repository (for standard libraries)
+				if strings.HasPrefix(path, repoRoot) {
+					var err error
+					path, err = filepath.Rel(repoRoot, path)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					return os.Open(path)
 				}
 			}
+			fmt.Println("OpenFile", path)
 			return fs.Open(path)
 		}
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
 			if filepath.IsAbs(path) {
-				var err error
-				path, err = filepath.Rel(repoRoot, path)
-				if err != nil {
-					return nil, err
+				if strings.HasPrefix(path, repoRoot) {
+					var err error
+					path, err = filepath.Rel(repoRoot, path)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					return ioutil.ReadDir(path)
 				}
 			}
+			fmt.Println("ReadDir", path)
 			return fs.ReadDir(path)
 		}
 	}
@@ -170,8 +181,29 @@ func loadPackages(dir dirSpec, recurse bool) (map[string]*gompatible.Package, er
 	return packages, nil
 }
 
-// loadSinglePackage parses .go sources under the dirSpec dir for a single *gompatible.Package.
 func loadSinglePackage(dir dirSpec) (*gompatible.Package, error) {
+	ctx, err := dir.buildContext()
+	if err != nil {
+		return nil, err
+	}
+
+	var mode build.ImportMode
+	pkg, err := ctx.ImportDir(dir.path, mode)
+	if err != nil {
+		return nil, err
+	}
+
+	files := []string{}
+	for _, file := range pkg.GoFiles {
+		filepath := path.Join(pkg.Dir, file) // TODO ctx.JoinPath
+		files = append(files, filepath)
+	}
+
+	return gompatible.LoadPackage(ctx, dir.path, files)
+}
+
+// loadSinglePackage parses .go sources under the dirSpec dir for a single *gompatible.Package.
+func _loadSinglePackage(dir dirSpec) (*gompatible.Package, error) {
 	ctx, err := dir.buildContext()
 	if err != nil {
 		return nil, err
@@ -186,7 +218,7 @@ func loadSinglePackage(dir dirSpec) (*gompatible.Package, error) {
 	fset := token.NewFileSet()
 	files := map[string]*ast.File{}
 	for _, file := range pkg.GoFiles {
-		filepath := path.Join(pkg.Dir, file)
+		filepath := path.Join(pkg.Dir, file) // TODO ctx.JoinPath
 
 		var r io.Reader
 		if ctx.OpenFile != nil {
