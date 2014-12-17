@@ -6,113 +6,13 @@ import (
 	"go/ast"
 	"go/build"
 	"go/token"
-	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/motemen/gompatible"
-
-	"sourcegraph.com/sourcegraph/go-vcs/vcs"
-	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/gitcmd"
-	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/hgcmd"
 )
-
-type dirSpec struct {
-	vcs      string
-	revision string
-	path     string
-
-	ctx *build.Context
-}
-
-func (d dirSpec) String() string {
-	if d.vcs == "" || d.revision == "" {
-		return d.path
-	}
-
-	return fmt.Sprintf("%s:%s:%s", d.vcs, d.revision, d.path)
-}
-
-func (d dirSpec) subdir(name string) dirSpec {
-	dupped := d
-	dupped.path = path.Join(d.path, name) // TODO use ctx.JoinPath
-	return dupped
-}
-
-func (dir dirSpec) buildContext() (*build.Context, error) {
-	if dir.ctx != nil {
-		return dir.ctx, nil
-	}
-
-	ctx := build.Default // copy
-
-	if dir.vcs != "" && dir.revision != "" {
-		cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-		cmd.Dir = dir.path
-		out, err := cmd.Output()
-		if err != nil {
-			return nil, err
-		}
-
-		repoRoot := strings.TrimRight(string(out), "\n")
-		repo, err := vcs.Open(dir.vcs, repoRoot)
-		if err != nil {
-			return nil, err
-		}
-
-		commit, err := repo.ResolveRevision(dir.revision)
-		if err != nil {
-			return nil, err
-		}
-
-		fs, err := repo.FileSystem(commit)
-		if err != nil {
-			return nil, err
-		}
-
-		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
-			gompatible.Debugf("OpenFile %s", path)
-
-			// TODO use ctx.IsAbsPath
-			if filepath.IsAbs(path) {
-				// the path maybe outside of repository (for standard libraries)
-				if strings.HasPrefix(path, repoRoot) {
-					var err error
-					path, err = filepath.Rel(repoRoot, path)
-					if err != nil {
-						return nil, err
-					}
-				} else {
-					return os.Open(path)
-				}
-			}
-			return fs.Open(path)
-		}
-		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
-			if filepath.IsAbs(path) {
-				if strings.HasPrefix(path, repoRoot) {
-					var err error
-					path, err = filepath.Rel(repoRoot, path)
-					if err != nil {
-						return nil, err
-					}
-				} else {
-					return ioutil.ReadDir(path)
-				}
-			}
-			gompatible.Debugf("ReadDir %s", path)
-			return fs.ReadDir(path)
-		}
-	}
-
-	dir.ctx = &ctx
-
-	return dir.ctx, nil
-}
 
 type packageFiles struct {
 	packageName string
@@ -121,8 +21,8 @@ type packageFiles struct {
 }
 
 // XXX should the return value be a map from dir to files? (currently assumed importPath to files)
-func listPackages(dir dirSpec, recurse bool) (map[string][]string, error) {
-	ctx, err := dir.buildContext()
+func listPackages(dir gompatible.DirSpec, recurse bool) (map[string][]string, error) {
+	ctx, err := dir.BuildContext()
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +37,7 @@ func listPackages(dir dirSpec, recurse bool) (map[string][]string, error) {
 	packages := map[string][]string{}
 
 	var mode build.ImportMode
-	p, err := ctx.ImportDir(dir.path, mode)
+	p, err := ctx.ImportDir(dir.Path, mode)
 	if err != nil {
 		if _, ok := err.(*build.NoGoError); ok {
 			// nop
@@ -155,7 +55,7 @@ func listPackages(dir dirSpec, recurse bool) (map[string][]string, error) {
 		packages[importPath] = make([]string, len(p.GoFiles))
 		for i, file := range p.GoFiles {
 			// TODO use ctx.JoinPath
-			packages[importPath][i] = filepath.Join(dir.path, file)
+			packages[importPath][i] = filepath.Join(dir.Path, file)
 		}
 	}
 
@@ -163,7 +63,7 @@ func listPackages(dir dirSpec, recurse bool) (map[string][]string, error) {
 		return packages, nil
 	}
 
-	entries, err := readDir(dir.path)
+	entries, err := readDir(dir.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +77,7 @@ func listPackages(dir dirSpec, recurse bool) (map[string][]string, error) {
 			continue
 		}
 
-		pkgs, err := listPackages(dir.subdir(e.Name()), recurse)
+		pkgs, err := listPackages(dir.Subdir(e.Name()), recurse)
 		if err != nil {
 			return nil, err
 		}
@@ -233,8 +133,8 @@ func main() {
 		}
 	}
 
-	dir1 := dirSpec{vcs: vcsType, revision: revs[0], path: path}
-	ctx1, err := dir1.buildContext()
+	dir1 := gompatible.DirSpec{VCS: vcsType, Revision: revs[0], Path: path}
+	ctx1, err := dir1.BuildContext()
 	dieIf(err)
 
 	pkgList1, err := listPackages(dir1, *flagRecurse)
@@ -243,8 +143,8 @@ func main() {
 	pkgs1, err := gompatible.LoadPackages(ctx1, pkgList1)
 	dieIf(err)
 
-	dir2 := dirSpec{vcs: vcsType, revision: revs[1], path: path}
-	ctx2, err := dir2.buildContext()
+	dir2 := gompatible.DirSpec{VCS: vcsType, Revision: revs[1], Path: path}
+	ctx2, err := dir2.BuildContext()
 	dieIf(err)
 
 	pkgList2, err := listPackages(dir2, *flagRecurse)
