@@ -23,7 +23,7 @@ func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 		}
 	}
 	if pkg2 == nil {
-		pkg1 = &Package{
+		pkg2 = &Package{
 			funcs: map[string]*Func{},
 			types: map[string]*Type{},
 		}

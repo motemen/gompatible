@@ -34,25 +34,58 @@ type Type struct {
 	Types   *types.TypeName
 }
 
+func LoadPackages(ctx *build.Context, filepaths map[string][]string) (map[string]*Package, error) {
+	conf := &loader.Config{
+		Build:               ctx,
+		ParserMode:          parser.ParseComments,
+		TypeCheckFuncBodies: func(_ string) bool { return false },
+		SourceImports:       true, // TODO should be controllable by flags
+	}
+	for path, files := range filepaths {
+		Debugf("CreateFromFilenames %s %v", path, files)
+		err := conf.CreateFromFilenames(path, files...)
+		if err != nil {
+			Debugf("ERR %+v", err)
+			return nil, err
+		}
+	}
+
+	prog, err := conf.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	packages := map[string]*Package{}
+	for _, pkg := range prog.Created {
+		packages[pkg.String()] = packageFromInfo(prog, pkg)
+	}
+
+	return packages, nil
+}
+
 func LoadPackage(ctx *build.Context, path string, filepaths []string) (*Package, error) {
 	conf := &loader.Config{
 		Build:      ctx,
 		ParserMode: parser.ParseComments,
-		/*
-			TypeChecker: types.Config{
-				Import: func(imports map[string]*types.Package, path string) (*types.Package, error) {
-					// TODO
-					bPkg, err := ctx.Import(path, ".", build.FindOnly|build.AllowBinary)
-					id := strings.TrimSuffix(bPkg.PkgObj, ".a")
-					fmt.Println("Import", "id", id)
-					return gcimporter.ImportData(imports, filename, id, data)
-				},
-			},
-		*/
+		// TypeChecker: types.Config{
+		// 	Import: func(imports map[string]*types.Package, path string) (*types.Package, error) {
+		// 		if stdLibs[path] {
+		// 			return gcimporter.Import(imports, path)
+		// 		}
+
+		// 		/*
+		// 			// TODO localImport
+		// 			bPkg, err := ctx.Import(path, ".", build.FindOnly|build.AllowBinary)
+		// 			id := strings.TrimSuffix(bPkg.PkgObj, ".a")
+		// 			fmt.Println("Import", "id", id)
+		// 			return gcimporter.ImportData(imports, filename, id, data)
+		// 		*/
+		// 	},
+		// },
 		TypeCheckFuncBodies: func(_ string) bool { return false },
 		SourceImports:       true,
 	}
-	err := conf.CreateFromFilenames(path, filepaths...)
+	err := conf.CreateFromFilenames("", filepaths...)
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +112,25 @@ func LoadPackage(ctx *build.Context, path string, filepaths []string) (*Package,
 		Doc:   docPkg,
 		Types: pkgInfo.Pkg,
 	}, nil
+}
+
+func packageFromInfo(prog *loader.Program, pkgInfo *loader.PackageInfo) *Package {
+	// Ignore (perhaps) "unresolved identifier" errors
+	files := map[string]*ast.File{}
+	for _, f := range pkgInfo.Files {
+		files[prog.Fset.File(f.Pos()).Name()] = f
+
+	}
+	astPkg, _ := ast.NewPackage(prog.Fset, files, nil, nil)
+
+	var mode doc.Mode
+	docPkg := doc.New(astPkg, pkgInfo.String(), mode)
+
+	return &Package{
+		Fset:  prog.Fset,
+		Doc:   docPkg,
+		Types: pkgInfo.Pkg,
+	}
 }
 
 func NewPackage(path string, fset *token.FileSet, files map[string]*ast.File) (*Package, error) {

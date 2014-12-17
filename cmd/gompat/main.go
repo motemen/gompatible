@@ -89,6 +89,8 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 		}
 
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
+			gompatible.Debugf("OpenFile %s", path)
+
 			// TODO use ctx.IsAbsPath
 			if filepath.IsAbs(path) {
 				// the path maybe outside of repository (for standard libraries)
@@ -102,7 +104,6 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 					return os.Open(path)
 				}
 			}
-			fmt.Println("OpenFile", path)
 			return fs.Open(path)
 		}
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
@@ -117,12 +118,81 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 					return ioutil.ReadDir(path)
 				}
 			}
-			fmt.Println("ReadDir", path)
+			gompatible.Debugf("ReadDir %s", path)
 			return fs.ReadDir(path)
 		}
 	}
 
 	return &ctx, nil
+}
+
+// XXX should the return value be a map from dir to files? (currently assumed importPath to files)
+func listPackages(dir dirSpec, recurse bool) (map[string][]string, error) {
+	ctx, err := dir.buildContext()
+	if err != nil {
+		return nil, err
+	}
+
+	var readDir func(string) ([]os.FileInfo, error)
+	if ctx.ReadDir != nil {
+		readDir = ctx.ReadDir
+	} else {
+		readDir = ioutil.ReadDir
+	}
+
+	packages := map[string][]string{}
+
+	var mode build.ImportMode
+	p, err := ctx.ImportDir(dir.path, mode)
+	if err != nil {
+		if _, ok := err.(*build.NoGoError); ok {
+			// nop
+		} else {
+			return nil, fmt.Errorf("while loading %s: %s", dir, err)
+		}
+	} else {
+		gompatible.Debugf("%+v", p)
+		importPath := p.ImportPath
+		if importPath == "." {
+			importPath = p.Dir
+		}
+
+		// XXX something's wrong if packages[importPath] exists already
+		packages[importPath] = make([]string, len(p.GoFiles))
+		for i, file := range p.GoFiles {
+			// TODO use ctx.JoinPath
+			packages[importPath][i] = filepath.Join(dir.path, file)
+		}
+	}
+
+	if recurse == false {
+		return packages, nil
+	}
+
+	entries, err := readDir(dir.path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, e := range entries {
+		if e.IsDir() == false {
+			continue
+		}
+
+		if name := e.Name(); name[0] == '.' || name[0] == '_' {
+			continue
+		}
+
+		pkgs, err := listPackages(dir.subdir(e.Name()), recurse)
+		if err != nil {
+			return nil, err
+		}
+		for path, files := range pkgs {
+			packages[path] = files
+		}
+	}
+
+	return packages, nil
 }
 
 func loadPackages(dir dirSpec, recurse bool) (map[string]*gompatible.Package, error) {
@@ -148,6 +218,7 @@ func loadPackages(dir dirSpec, recurse bool) (map[string]*gompatible.Package, er
 			return nil, fmt.Errorf("while loading %s: %s", dir, err)
 		}
 	} else {
+		gompatible.Debugf("load %s", p.Types.Path())
 		packages[p.Types.Path()] = p
 	}
 
@@ -283,10 +354,24 @@ func main() {
 		}
 	}
 
-	pkgs1, err := loadPackages(dirSpec{vcs: vcsType, revision: revs[0], path: path}, *flagRecurse)
+	dir1 := dirSpec{vcs: vcsType, revision: revs[0], path: path}
+	ctx1, err := dir1.buildContext()
 	dieIf(err)
 
-	pkgs2, err := loadPackages(dirSpec{vcs: vcsType, revision: revs[1], path: path}, *flagRecurse)
+	pkgList1, err := listPackages(dir1, *flagRecurse)
+	dieIf(err)
+
+	pkgs1, err := gompatible.LoadPackages(ctx1, pkgList1)
+	dieIf(err)
+
+	dir2 := dirSpec{vcs: vcsType, revision: revs[1], path: path}
+	ctx2, err := dir2.buildContext()
+	dieIf(err)
+
+	pkgList2, err := listPackages(dir2, *flagRecurse)
+	dieIf(err)
+
+	pkgs2, err := gompatible.LoadPackages(ctx2, pkgList2)
 	dieIf(err)
 
 	diffs := map[string]gompatible.PackageChanges{}
