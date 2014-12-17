@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
-	"go/parser"
 	"go/token"
 	"io"
 	"io/ioutil"
@@ -44,25 +43,12 @@ func (d dirSpec) subdir(name string) dirSpec {
 	return dupped
 }
 
-func (d dirSpec) buildContext() (*build.Context, error) {
-	if d.ctx != nil {
-		return d.ctx, nil
+func (dir dirSpec) buildContext() (*build.Context, error) {
+	if dir.ctx != nil {
+		return dir.ctx, nil
 	}
 
-	var err error
-	d.ctx, err = buildContext(d)
-
-	return d.ctx, err
-}
-
-type packageFiles struct {
-	packageName string
-	fset        *token.FileSet
-	files       map[string]*ast.File
-}
-
-func buildContext(dir dirSpec) (*build.Context, error) {
-	ctx := build.Default
+	ctx := build.Default // copy
 
 	if dir.vcs != "" && dir.revision != "" {
 		cmd := exec.Command("git", "rev-parse", "--show-toplevel")
@@ -123,7 +109,15 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 		}
 	}
 
-	return &ctx, nil
+	dir.ctx = &ctx
+
+	return dir.ctx, nil
+}
+
+type packageFiles struct {
+	packageName string
+	fset        *token.FileSet
+	files       map[string]*ast.File
 }
 
 // XXX should the return value be a map from dir to files? (currently assumed importPath to files)
@@ -193,121 +187,6 @@ func listPackages(dir dirSpec, recurse bool) (map[string][]string, error) {
 	}
 
 	return packages, nil
-}
-
-func loadPackages(dir dirSpec, recurse bool) (map[string]*gompatible.Package, error) {
-	ctx, err := dir.buildContext()
-	if err != nil {
-		return nil, err
-	}
-
-	var readDir func(string) ([]os.FileInfo, error)
-	if ctx.ReadDir != nil {
-		readDir = ctx.ReadDir
-	} else {
-		readDir = ioutil.ReadDir
-	}
-
-	packages := map[string]*gompatible.Package{}
-
-	p, err := loadSinglePackage(dir)
-	if err != nil {
-		if _, ok := err.(*build.NoGoError); ok {
-			// nop
-		} else {
-			return nil, fmt.Errorf("while loading %s: %s", dir, err)
-		}
-	} else {
-		gompatible.Debugf("load %s", p.Types.Path())
-		packages[p.Types.Path()] = p
-	}
-
-	if recurse == false {
-		return packages, nil
-	}
-
-	entries, err := readDir(dir.path)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, e := range entries {
-		if e.IsDir() == false {
-			continue
-		}
-
-		if name := e.Name(); name[0] == '.' || name[0] == '_' {
-			continue
-		}
-
-		pkgs, err := loadPackages(dir.subdir(e.Name()), recurse)
-		if err != nil {
-			return nil, err
-		}
-		for name, p := range pkgs {
-			packages[name] = p
-		}
-	}
-
-	return packages, nil
-}
-
-func loadSinglePackage(dir dirSpec) (*gompatible.Package, error) {
-	ctx, err := dir.buildContext()
-	if err != nil {
-		return nil, err
-	}
-
-	var mode build.ImportMode
-	pkg, err := ctx.ImportDir(dir.path, mode)
-	if err != nil {
-		return nil, err
-	}
-
-	files := []string{}
-	for _, file := range pkg.GoFiles {
-		filepath := path.Join(pkg.Dir, file) // TODO ctx.JoinPath
-		files = append(files, filepath)
-	}
-
-	return gompatible.LoadPackage(ctx, dir.path, files)
-}
-
-// loadSinglePackage parses .go sources under the dirSpec dir for a single *gompatible.Package.
-func _loadSinglePackage(dir dirSpec) (*gompatible.Package, error) {
-	ctx, err := dir.buildContext()
-	if err != nil {
-		return nil, err
-	}
-
-	var mode build.ImportMode
-	pkg, err := ctx.ImportDir(dir.path, mode)
-	if err != nil {
-		return nil, err
-	}
-
-	fset := token.NewFileSet()
-	files := map[string]*ast.File{}
-	for _, file := range pkg.GoFiles {
-		filepath := path.Join(pkg.Dir, file) // TODO ctx.JoinPath
-
-		var r io.Reader
-		if ctx.OpenFile != nil {
-			r, err = ctx.OpenFile(filepath)
-		} else {
-			r, err = os.Open(filepath)
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		files[file], err = parser.ParseFile(fset, filepath, r, parser.ParseComments)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return gompatible.NewPackage(pkg.Name, fset, files)
 }
 
 func usage() {
