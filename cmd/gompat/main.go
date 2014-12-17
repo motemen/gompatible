@@ -3,9 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"go/ast"
 	"go/build"
-	"go/token"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -13,12 +11,6 @@ import (
 
 	"github.com/motemen/gompatible"
 )
-
-type packageFiles struct {
-	packageName string
-	fset        *token.FileSet
-	files       map[string]*ast.File
-}
 
 // XXX should the return value be a map from dir to files? (currently assumed importPath to files)
 func listPackages(dir gompatible.DirSpec, recurse bool) (map[string][]string, error) {
