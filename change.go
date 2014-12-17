@@ -34,7 +34,6 @@ type Change interface {
 }
 
 func ShowChange(c Change) string {
-	// TODO simplify packages
 	switch c.Kind() {
 	case ChangeAdded:
 		return "+ " + c.ShowAfter()
