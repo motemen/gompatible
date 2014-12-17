@@ -3,11 +3,11 @@ package gompatible
 import (
 	"fmt"
 	"go/build"
+	"golang.org/x/tools/go/buildutil"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -33,9 +33,19 @@ func (dir DirSpec) String() string {
 }
 
 func (dir DirSpec) Subdir(name string) DirSpec {
+	ctx, _ := dir.BuildContext() // FIXME
 	dupped := dir
-	dupped.Path = path.Join(dir.Path, name) // TODO use ctx.JoinPath
+	dupped.Path = buildutil.JoinPath(ctx, dir.Path, name)
 	return dupped
+}
+
+func (dir DirSpec) ReadDir() ([]os.FileInfo, error) {
+	ctx, err := dir.BuildContext() // FIXME
+	if err != nil {
+		return nil, err
+	}
+
+	return buildutil.ReadDir(ctx, dir.Path)
 }
 
 func (dir DirSpec) BuildContext() (*build.Context, error) {
@@ -48,6 +58,7 @@ func (dir DirSpec) BuildContext() (*build.Context, error) {
 	if dir.VCS != "" && dir.Revision != "" {
 		cmd := exec.Command("git", "rev-parse", "--show-toplevel")
 		cmd.Dir = dir.Path
+
 		out, err := cmd.Output()
 		if err != nil {
 			return nil, err
@@ -72,8 +83,7 @@ func (dir DirSpec) BuildContext() (*build.Context, error) {
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 			Debugf("OpenFile %s", path)
 
-			// TODO use ctx.IsAbsPath
-			if filepath.IsAbs(path) {
+			if buildutil.IsAbsPath(&ctx, path) {
 				// the path maybe outside of repository (for standard libraries)
 				if strings.HasPrefix(path, repoRoot) {
 					var err error
@@ -85,9 +95,13 @@ func (dir DirSpec) BuildContext() (*build.Context, error) {
 					return os.Open(path)
 				}
 			}
+
 			return fs.Open(path)
 		}
+
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
+			Debugf("ReadDir %s", path)
+
 			if filepath.IsAbs(path) {
 				if strings.HasPrefix(path, repoRoot) {
 					var err error
@@ -99,7 +113,7 @@ func (dir DirSpec) BuildContext() (*build.Context, error) {
 					return ioutil.ReadDir(path)
 				}
 			}
-			Debugf("ReadDir %s", path)
+
 			return fs.ReadDir(path)
 		}
 	}

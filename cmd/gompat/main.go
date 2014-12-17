@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,13 +16,6 @@ func listPackages(dir gompatible.DirSpec, recurse bool) (map[string][]string, er
 	ctx, err := dir.BuildContext()
 	if err != nil {
 		return nil, err
-	}
-
-	var readDir func(string) ([]os.FileInfo, error)
-	if ctx.ReadDir != nil {
-		readDir = ctx.ReadDir
-	} else {
-		readDir = ioutil.ReadDir
 	}
 
 	packages := map[string][]string{}
@@ -55,7 +47,7 @@ func listPackages(dir gompatible.DirSpec, recurse bool) (map[string][]string, er
 		return packages, nil
 	}
 
-	entries, err := readDir(dir.Path)
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return nil, err
 	}
