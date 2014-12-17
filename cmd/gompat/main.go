@@ -97,7 +97,6 @@ func buildContext(dir dirSpec) (*build.Context, error) {
 					return nil, err
 				}
 			}
-			fmt.Printf("OpenFile: %s reporoot=%s\n", path, repoRoot)
 			return fs.Open(path)
 		}
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
