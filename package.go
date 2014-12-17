@@ -36,10 +36,21 @@ type Type struct {
 
 func LoadPackage(ctx *build.Context, path string, filepaths []string) (*Package, error) {
 	conf := &loader.Config{
-		Build:               ctx,
-		ParserMode:          parser.ParseComments,
+		Build:      ctx,
+		ParserMode: parser.ParseComments,
+		/*
+			TypeChecker: types.Config{
+				Import: func(imports map[string]*types.Package, path string) (*types.Package, error) {
+					// TODO
+					bPkg, err := ctx.Import(path, ".", build.FindOnly|build.AllowBinary)
+					id := strings.TrimSuffix(bPkg.PkgObj, ".a")
+					fmt.Println("Import", "id", id)
+					return gcimporter.ImportData(imports, filename, id, data)
+				},
+			},
+		*/
 		TypeCheckFuncBodies: func(_ string) bool { return false },
-		// SourceImports:       true,
+		SourceImports:       true,
 	}
 	err := conf.CreateFromFilenames(path, filepaths...)
 	if err != nil {

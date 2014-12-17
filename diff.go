@@ -15,6 +15,20 @@ func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 		Types:  map[string]TypeChange{},
 	}
 
+	// FIXME
+	if pkg1 == nil {
+		pkg1 = &Package{
+			funcs: map[string]*Func{},
+			types: map[string]*Type{},
+		}
+	}
+	if pkg2 == nil {
+		pkg1 = &Package{
+			funcs: map[string]*Func{},
+			types: map[string]*Type{},
+		}
+	}
+
 	for _, name := range union(pkg1.FuncNames(), pkg2.FuncNames()) {
 		diff.Funcs[name] = FuncChange{
 			Before: pkg1.Func(name),
