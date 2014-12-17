@@ -45,7 +45,7 @@ func (tc TypeChange) Kind() ChangeKind {
 	}
 }
 
-// TODO byte <-> uint8, rune <-> int32
+// TODO byte <-> uint8, rune <-> int32 compatibility
 func typesCompatible(t1, t2 types.Type) bool {
 	// If both types are struct, mark them comptabile
 	// iff their public field types are comptabile for each their names (order insensitive)
