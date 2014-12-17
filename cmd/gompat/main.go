@@ -11,68 +11,6 @@ import (
 	"github.com/motemen/gompatible"
 )
 
-// XXX should the return value be a map from dir to files? (currently assumed importPath to files)
-func listPackages(dir gompatible.DirSpec, recurse bool) (map[string][]string, error) {
-	ctx, err := dir.BuildContext()
-	if err != nil {
-		return nil, err
-	}
-
-	packages := map[string][]string{}
-
-	var mode build.ImportMode
-	p, err := ctx.ImportDir(dir.Path, mode)
-	if err != nil {
-		if _, ok := err.(*build.NoGoError); ok {
-			// nop
-		} else {
-			return nil, fmt.Errorf("while loading %s: %s", dir, err)
-		}
-	} else {
-		gompatible.Debugf("%+v", p)
-		importPath := p.ImportPath
-		if importPath == "." {
-			importPath = p.Dir
-		}
-
-		// XXX something's wrong if packages[importPath] exists already
-		packages[importPath] = make([]string, len(p.GoFiles))
-		for i, file := range p.GoFiles {
-			// TODO use ctx.JoinPath
-			packages[importPath][i] = filepath.Join(dir.Path, file)
-		}
-	}
-
-	if recurse == false {
-		return packages, nil
-	}
-
-	entries, err := dir.ReadDir()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, e := range entries {
-		if e.IsDir() == false {
-			continue
-		}
-
-		if name := e.Name(); name[0] == '.' || name[0] == '_' {
-			continue
-		}
-
-		pkgs, err := listPackages(dir.Subdir(e.Name()), recurse)
-		if err != nil {
-			return nil, err
-		}
-		for path, files := range pkgs {
-			packages[path] = files
-		}
-	}
-
-	return packages, nil
-}
-
 func usage() {
 	fmt.Printf("Usage: %s <rev1>[..<rev2>] [<path>]\n", os.Args[0])
 	os.Exit(1)
@@ -118,23 +56,10 @@ func main() {
 	}
 
 	dir1 := gompatible.DirSpec{VCS: vcsType, Revision: revs[0], Path: path}
-	ctx1, err := dir1.BuildContext()
-	dieIf(err)
-
-	pkgList1, err := listPackages(dir1, *flagRecurse)
-	dieIf(err)
-
-	pkgs1, err := gompatible.LoadPackages(ctx1, pkgList1)
-	dieIf(err)
+	pkgs1, err := gompatible.LoadDir(dir1, *flagRecurse)
 
 	dir2 := gompatible.DirSpec{VCS: vcsType, Revision: revs[1], Path: path}
-	ctx2, err := dir2.BuildContext()
-	dieIf(err)
-
-	pkgList2, err := listPackages(dir2, *flagRecurse)
-	dieIf(err)
-
-	pkgs2, err := gompatible.LoadPackages(ctx2, pkgList2)
+	pkgs2, err := gompatible.LoadDir(dir2, *flagRecurse)
 	dieIf(err)
 
 	diffs := map[string]gompatible.PackageChanges{}
