@@ -5,46 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 
 	"github.com/motemen/gompatible"
 )
 
-type forEachStringHolder struct {
-	yielders []stringsYielder
-}
-
-func (h forEachStringHolder) do(f func(string)) {
-	seen := map[string]bool{}
-	for _, y := range h.yielders {
-		y.yieldStrings(func(name string) {
-			seen[name] = true
-		})
-	}
-
-	names := []string{}
-	for name := range seen {
-		names = append(names, name)
-	}
-
-	sort.Strings(names)
-
-	for _, name := range names {
-		f(name)
-	}
-}
-
-func forEachString(gen ...stringsYielder) forEachStringHolder {
-	return forEachStringHolder{gen}
-}
-
-type stringsYielder interface {
-	yieldStrings(func(string))
-}
-
 type funcNames map[string]gompatible.FuncChange
 
-func (b funcNames) yieldStrings(yield func(string)) {
+func (b funcNames) Yield(yield func(string)) {
 	for name := range b {
 		yield(name)
 	}
@@ -52,7 +19,7 @@ func (b funcNames) yieldStrings(yield func(string)) {
 
 type typeNames map[string]gompatible.TypeChange
 
-func (b typeNames) yieldStrings(yield func(string)) {
+func (b typeNames) Yield(yield func(string)) {
 	for name := range b {
 		yield(name)
 	}
@@ -60,7 +27,7 @@ func (b typeNames) yieldStrings(yield func(string)) {
 
 type pkgNames map[string]*gompatible.Package
 
-func (b pkgNames) yieldStrings(yield func(string)) {
+func (b pkgNames) Yield(yield func(string)) {
 	for name := range b {
 		yield(name)
 	}

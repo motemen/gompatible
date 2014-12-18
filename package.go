@@ -21,8 +21,24 @@ type Package struct {
 	DocPkg   *doc.Package
 	Fset     *token.FileSet
 
-	funcs map[string]*Func
-	types map[string]*Type
+	Funcs map[string]*Func
+	Types map[string]*Type
+}
+
+type funcNames map[string]*Func
+
+func (f funcNames) Yield(y func(string)) {
+	for name := range f {
+		y(name)
+	}
+}
+
+type typeNames map[string]*Type
+
+func (f typeNames) Yield(y func(string)) {
+	for name := range f {
+		y(name)
+	}
 }
 
 // Func is a parsed, type-checked and documented function.
@@ -155,81 +171,65 @@ func packageFromInfo(prog *loader.Program, pkgInfo *loader.PackageInfo) *Package
 	var mode doc.Mode
 	docPkg := doc.New(astPkg, pkgInfo.String(), mode)
 
-	return &Package{
-		Fset:     prog.Fset,
-		DocPkg:   docPkg,
-		TypesPkg: pkgInfo.Pkg,
+	return NewPackage(prog.Fset, docPkg, pkgInfo.Pkg)
+}
+
+func NewPackage(fset *token.FileSet, doc *doc.Package, types *types.Package) *Package {
+	pkg := &Package{
+		Fset:     fset,
+		DocPkg:   doc,
+		TypesPkg: types,
 	}
+	pkg.init()
+
+	return pkg
 }
 
-func (p Package) FuncNames() []string {
-	names := []string{}
-	funcs := p.buildFuncs()
-	for name := range funcs {
-		names = append(names, name)
-	}
-	return names
+func (p *Package) init() {
+	p.buildFuncs()
+	p.buildTypes()
 }
 
-func (p Package) Func(name string) *Func {
-	funcs := p.buildFuncs()
-	return funcs[name]
-}
-
-func (p Package) TypeNames() []string {
-	names := []string{}
-	funcs := p.buildTypes()
-	for name := range funcs {
-		names = append(names, name)
-	}
-	return names
-}
-
-func (p Package) Type(name string) *Type {
-	funcs := p.buildTypes()
-	return funcs[name]
-}
-
-func (p Package) buildFuncs() map[string]*Func {
-	if p.funcs != nil {
-		return p.funcs
+func (p *Package) buildFuncs() map[string]*Func {
+	if p.Funcs != nil {
+		return p.Funcs
 	}
 
-	p.funcs = map[string]*Func{}
+	p.Funcs = map[string]*Func{}
 
 	for _, docF := range p.DocPkg.Funcs {
 		name := docF.Name
 		if typesF, ok := p.TypesPkg.Scope().Lookup(name).(*types.Func); ok {
-			p.funcs[name] = &Func{
-				Package: &p,
+			p.Funcs[name] = &Func{
+				Package: p,
 				Doc:     docF,
 				Types:   typesF,
 			}
 		}
 	}
 
-	return p.funcs
+	return p.Funcs
 }
 
-func (p Package) buildTypes() map[string]*Type {
-	if p.types != nil {
-		return p.types
+func (p *Package) buildTypes() map[string]*Type {
+	if p.Types != nil {
+		return p.Types
 	}
 
-	p.types = map[string]*Type{}
+	p.Types = map[string]*Type{}
 
 	for _, docT := range p.DocPkg.Types {
 		name := docT.Name
 		if typesT, ok := p.TypesPkg.Scope().Lookup(name).(*types.TypeName); ok {
-			p.types[name] = &Type{
-				Package: &p,
+			p.Types[name] = &Type{
+				Package: p,
 				Doc:     docT,
 				Types:   typesT,
 			}
 		}
 	}
 
-	return p.types
+	return p.Types
 }
 
 func (p Package) showASTNode(node interface{}) string {

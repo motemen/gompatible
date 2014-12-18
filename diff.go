@@ -1,5 +1,9 @@
 package gompatible
 
+import (
+	"github.com/motemen/gompatible/sortedset"
+)
+
 type PackageChanges struct {
 	Before *Package
 	After  *Package
@@ -18,46 +22,32 @@ func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 	// FIXME
 	if pkg1 == nil {
 		pkg1 = &Package{
-			funcs: map[string]*Func{},
-			types: map[string]*Type{},
+			Funcs: map[string]*Func{},
+			Types: map[string]*Type{},
 		}
 	}
 	if pkg2 == nil {
 		pkg2 = &Package{
-			funcs: map[string]*Func{},
-			types: map[string]*Type{},
+			Funcs: map[string]*Func{},
+			Types: map[string]*Type{},
 		}
 	}
 
-	for _, name := range union(pkg1.FuncNames(), pkg2.FuncNames()) {
+	Debugf("%+v %+v", pkg1, pkg2)
+	sortedset.Strings(funcNames(pkg1.Funcs), funcNames(pkg2.Funcs)).ForEach(func(name string) {
+		Debugf("%q", name)
 		diff.Funcs[name] = FuncChange{
-			Before: pkg1.Func(name),
-			After:  pkg2.Func(name),
+			Before: pkg1.Funcs[name],
+			After:  pkg2.Funcs[name],
 		}
-	}
+	})
 
-	for _, name := range union(pkg1.TypeNames(), pkg2.TypeNames()) {
+	sortedset.Strings(typeNames(pkg1.Types), typeNames(pkg2.Types)).ForEach(func(name string) {
 		diff.Types[name] = TypeChange{
-			Before: pkg1.Type(name),
-			After:  pkg2.Type(name),
+			Before: pkg1.Types[name],
+			After:  pkg2.Types[name],
 		}
-	}
+	})
 
 	return diff
-}
-
-func union(ss ...[]string) []string {
-	union := []string{}
-	seen := map[string]bool{}
-
-	for _, s := range ss {
-		for _, str := range s {
-			if seen[str] == false {
-				seen[str] = true
-				union = append(union, str)
-			}
-		}
-	}
-
-	return union
 }
