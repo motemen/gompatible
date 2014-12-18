@@ -17,9 +17,9 @@ import (
 
 // Package represents a parsed, type-checked and documented package.
 type Package struct {
-	Types *types.Package
-	Doc   *doc.Package
-	Fset  *token.FileSet
+	TypesPkg *types.Package
+	DocPkg   *doc.Package
+	Fset     *token.FileSet
 
 	funcs map[string]*Func
 	types map[string]*Type
@@ -156,9 +156,9 @@ func packageFromInfo(prog *loader.Program, pkgInfo *loader.PackageInfo) *Package
 	docPkg := doc.New(astPkg, pkgInfo.String(), mode)
 
 	return &Package{
-		Fset:  prog.Fset,
-		Doc:   docPkg,
-		Types: pkgInfo.Pkg,
+		Fset:     prog.Fset,
+		DocPkg:   docPkg,
+		TypesPkg: pkgInfo.Pkg,
 	}
 }
 
@@ -197,9 +197,9 @@ func (p Package) buildFuncs() map[string]*Func {
 
 	p.funcs = map[string]*Func{}
 
-	for _, docF := range p.Doc.Funcs {
+	for _, docF := range p.DocPkg.Funcs {
 		name := docF.Name
-		if typesF, ok := p.Types.Scope().Lookup(name).(*types.Func); ok {
+		if typesF, ok := p.TypesPkg.Scope().Lookup(name).(*types.Func); ok {
 			p.funcs[name] = &Func{
 				Package: &p,
 				Doc:     docF,
@@ -218,9 +218,9 @@ func (p Package) buildTypes() map[string]*Type {
 
 	p.types = map[string]*Type{}
 
-	for _, docT := range p.Doc.Types {
+	for _, docT := range p.DocPkg.Types {
 		name := docT.Name
-		if typesT, ok := p.Types.Scope().Lookup(name).(*types.TypeName); ok {
+		if typesT, ok := p.TypesPkg.Scope().Lookup(name).(*types.TypeName); ok {
 			p.types[name] = &Type{
 				Package: &p,
 				Doc:     docT,
