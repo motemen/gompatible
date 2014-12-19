@@ -7,12 +7,12 @@ import (
 	"runtime"
 )
 
+var Debug bool = false
+
 func Debugf(pat string, args ...interface{}) {
+	if Debug == false {
+		return
+	}
 	_, file, line, _ := runtime.Caller(1)
 	fmt.Fprintf(os.Stderr, "--> %s:%d "+pat+"\n", append([]interface{}{filepath.Base(file), line}, args...)...)
-}
-
-func Stub() error {
-	_, file, line, _ := runtime.Caller(1)
-	return fmt.Errorf("stub %s:%d", filepath.Base(file), line)
 }

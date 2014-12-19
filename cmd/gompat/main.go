@@ -66,11 +66,7 @@ func main() {
 
 	diffs := map[string]gompatible.PackageChanges{}
 
-	gompatible.Debugf("%+v", pkgs1)
-	gompatible.Debugf("%+v", pkgs2)
-	gompatible.Debugf("%+v", sortedset.Strings(pkgNames(pkgs1), pkgNames(pkgs2)))
 	sortedset.Strings(pkgNames(pkgs1), pkgNames(pkgs2)).ForEach(func(name string) {
-		gompatible.Debugf("%+v", name)
 		diffs[name] = gompatible.DiffPackages(
 			pkgs1[name], pkgs2[name],
 		)
@@ -84,6 +80,7 @@ func main() {
 			}
 
 			if !headerShown {
+				// FIXME strictly not a package if inspecting local import
 				fmt.Printf("package %s\n", name)
 				headerShown = true
 			}
@@ -101,8 +98,60 @@ func main() {
 			change := diff.Types[name]
 			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 				printHeader()
-				fmt.Println(gompatible.ShowChange(change))
+				fmt.Println(showChange(change))
 			}
 		})
+	}
+}
+
+func showChange(c gompatible.Change) string {
+	multiline := false
+
+	// len(prefix) == 1
+	show := func(prefix, s string) string {
+		lines := strings.Split(s, "\n")
+		for i := range lines {
+			if i == 0 {
+				lines[i] = prefix + " " + lines[i]
+			} else {
+				lines[i] = "  " + lines[i]
+				multiline = true
+			}
+		}
+
+		return strings.Join(lines, "\n")
+	}
+
+	switch c.Kind() {
+	case gompatible.ChangeAdded:
+		return show("+", c.ShowAfter())
+	case gompatible.ChangeRemoved:
+		return show("-", c.ShowBefore())
+	case gompatible.ChangeUnchanged:
+		return show("=", c.ShowBefore())
+	case gompatible.ChangeCompatible:
+		var (
+			before = show("*", c.ShowBefore())
+			after  = show(" ", c.ShowAfter())
+		)
+		sep := " "
+		if multiline {
+			sep = "\n"
+		}
+
+		return before + sep + "->" + sep + after
+	case gompatible.ChangeBreaking:
+		fallthrough
+	default:
+		var (
+			before = show("!", c.ShowBefore())
+			after  = show(" ", c.ShowAfter())
+		)
+		sep := " "
+		if multiline {
+			sep = "\n"
+		}
+
+		return before + sep + "->" + sep + after
 	}
 }
