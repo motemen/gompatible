@@ -5,33 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-
-	"github.com/motemen/gompatible"
 )
-
-type funcNames map[string]gompatible.FuncChange
-
-func (b funcNames) Yield(yield func(string)) {
-	for name := range b {
-		yield(name)
-	}
-}
-
-type typeNames map[string]gompatible.TypeChange
-
-func (b typeNames) Yield(yield func(string)) {
-	for name := range b {
-		yield(name)
-	}
-}
-
-type pkgNames map[string]*gompatible.Package
-
-func (b pkgNames) Yield(yield func(string)) {
-	for name := range b {
-		yield(name)
-	}
-}
 
 func dieIf(err error) {
 	if err != nil {

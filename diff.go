@@ -1,7 +1,7 @@
 package gompatible
 
 import (
-	"github.com/motemen/gompatible/sortedset"
+	"github.com/motemen/gompatible/util"
 )
 
 type PackageChanges struct {
@@ -34,20 +34,20 @@ func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 	}
 
 	Debugf("%+v %+v", pkg1, pkg2)
-	sortedset.Strings(funcNames(pkg1.Funcs), funcNames(pkg2.Funcs)).ForEach(func(name string) {
+	for _, name := range util.SortedStringSet(util.MapKeys(pkg1.Funcs), util.MapKeys(pkg2.Funcs)) {
 		Debugf("%q", name)
 		diff.Funcs[name] = FuncChange{
 			Before: pkg1.Funcs[name],
 			After:  pkg2.Funcs[name],
 		}
-	})
+	}
 
-	sortedset.Strings(typeNames(pkg1.Types), typeNames(pkg2.Types)).ForEach(func(name string) {
+	for _, name := range util.SortedStringSet(util.MapKeys(pkg1.Types), util.MapKeys(pkg2.Types)) {
 		diff.Types[name] = TypeChange{
 			Before: pkg1.Types[name],
 			After:  pkg2.Types[name],
 		}
-	})
+	}
 
 	return diff
 }

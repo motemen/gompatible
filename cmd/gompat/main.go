@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/motemen/gompatible"
-	"github.com/motemen/gompatible/sortedset"
+	"github.com/motemen/gompatible/util"
+
+	"github.com/daviddengcn/go-colortext"
 )
 
 func usage() {
@@ -66,11 +68,11 @@ func main() {
 
 	diffs := map[string]gompatible.PackageChanges{}
 
-	sortedset.Strings(pkgNames(pkgs1), pkgNames(pkgs2)).ForEach(func(name string) {
+	for _, name := range util.SortedStringSet(util.MapKeys(pkgs1), util.MapKeys(pkgs2)) {
 		diffs[name] = gompatible.DiffPackages(
 			pkgs1[name], pkgs2[name],
 		)
-	})
+	}
 
 	for name, diff := range diffs {
 		var headerShown bool
@@ -86,35 +88,51 @@ func main() {
 			}
 		}
 
-		sortedset.Strings(funcNames(diff.Funcs)).ForEach(func(name string) {
+		for _, name := range util.SortedStringSet(util.MapKeys(diff.Funcs)) {
 			change := diff.Funcs[name]
 			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 				printHeader()
-				fmt.Println(gompatible.ShowChange(change))
+				printChange(change)
 			}
-		})
+		}
 
-		sortedset.Strings(typeNames(diff.Types)).ForEach(func(name string) {
+		for _, name := range util.SortedStringSet(util.MapKeys(diff.Types)) {
 			change := diff.Types[name]
 			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 				printHeader()
-				fmt.Println(showChange(change))
+				printChange(change)
 			}
-		})
+		}
 	}
 }
 
-func showChange(c gompatible.Change) string {
+type changeMark struct {
+	mark  string // should have length == 2
+	color ct.Color
+}
+
+var (
+	markAdded      = changeMark{"+ ", ct.Green}
+	markRemoved    = changeMark{"- ", ct.Red}
+	markUnchanged  = changeMark{"= ", ct.Blue}
+	markCompatible = changeMark{"* ", ct.Yellow}
+	markBreaking   = changeMark{"! ", ct.Red}
+	markConfer     = changeMark{". ", ct.None}
+)
+
+func printChange(c gompatible.Change) {
 	multiline := false
 
-	// len(prefix) == 1
-	show := func(prefix, s string) string {
+	show := func(mark changeMark, s string) string {
 		lines := strings.Split(s, "\n")
 		for i := range lines {
 			if i == 0 {
-				lines[i] = prefix + " " + lines[i]
+				ct.ChangeColor(mark.color, false, ct.None, false)
+				fmt.Print(mark.mark)
+				ct.ResetColor()
+				fmt.Println(lines[i])
 			} else {
-				lines[i] = "  " + lines[i]
+				fmt.Println(" ", lines[i])
 				multiline = true
 			}
 		}
@@ -124,34 +142,18 @@ func showChange(c gompatible.Change) string {
 
 	switch c.Kind() {
 	case gompatible.ChangeAdded:
-		return show("+", c.ShowAfter())
+		show(markAdded, c.ShowAfter())
 	case gompatible.ChangeRemoved:
-		return show("-", c.ShowBefore())
+		show(markRemoved, c.ShowBefore())
 	case gompatible.ChangeUnchanged:
-		return show("=", c.ShowBefore())
+		show(markUnchanged, c.ShowBefore())
 	case gompatible.ChangeCompatible:
-		var (
-			before = show("*", c.ShowBefore())
-			after  = show(" ", c.ShowAfter())
-		)
-		sep := " "
-		if multiline {
-			sep = "\n"
-		}
-
-		return before + sep + "->" + sep + after
+		show(markCompatible, c.ShowBefore())
+		show(markConfer, c.ShowAfter())
 	case gompatible.ChangeBreaking:
 		fallthrough
 	default:
-		var (
-			before = show("!", c.ShowBefore())
-			after  = show(" ", c.ShowAfter())
-		)
-		sep := " "
-		if multiline {
-			sep = "\n"
-		}
-
-		return before + sep + "->" + sep + after
+		show(markBreaking, c.ShowBefore())
+		show(markConfer, c.ShowAfter())
 	}
 }

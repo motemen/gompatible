@@ -1,11 +1,11 @@
-package gompatible
+package util
 
 import (
 	"reflect"
 	"sort"
 )
 
-func mapKeys(m interface{}) []string {
+func MapKeys(m interface{}) []string {
 	v := reflect.ValueOf(m)
 
 	refKeys := v.MapKeys()
@@ -18,7 +18,7 @@ func mapKeys(m interface{}) []string {
 	return keys
 }
 
-func sortedStringSet(sets ...[]string) []string {
+func SortedStringSet(sets ...[]string) []string {
 	seen := map[string]bool{}
 	for _, s := range sets {
 		for _, str := range s {
