@@ -88,6 +88,24 @@ func (dir *DirSpec) BuildContext() (*build.Context, error) {
 			return nil, err
 		}
 
+		ctx.IsDir = func(path string) bool {
+			if buildutil.IsAbsPath(&ctx, path) {
+				if strings.HasPrefix(path, dir.root) {
+					var err error
+					path, err = filepath.Rel(dir.root, path)
+					if err != nil {
+						return false
+					}
+				} else {
+					fi, err := os.Stat(path)
+					return err == nil && fi.IsDir()
+				}
+			}
+
+			fi, err := fs.Stat(path)
+			return err == nil && fi.IsDir()
+		}
+
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 			if buildutil.IsAbsPath(&ctx, path) {
 				// the path maybe outside of repository (for standard libraries)
