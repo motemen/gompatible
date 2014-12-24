@@ -56,7 +56,7 @@ type Type struct {
 }
 
 // XXX should the return value be a map from dir to files? (currently assumed importPath to files)
-func listDirFiles(dir DirSpec, recurse bool) (map[string][]string, error) {
+func listDirFiles(dir *DirSpec, recurse bool) (map[string][]string, error) {
 	ctx, err := dir.BuildContext()
 	if err != nil {
 		return nil, err
@@ -73,7 +73,6 @@ func listDirFiles(dir DirSpec, recurse bool) (map[string][]string, error) {
 			return nil, fmt.Errorf("while loading %s: %s", dir, err)
 		}
 	} else {
-		Debugf("%+v", p)
 		importPath := p.ImportPath
 		if importPath == "." {
 			importPath = p.Dir
@@ -116,7 +115,7 @@ func listDirFiles(dir DirSpec, recurse bool) (map[string][]string, error) {
 	return packages, nil
 }
 
-func LoadDir(dir DirSpec, recurse bool) (map[string]*Package, error) {
+func LoadDir(dir *DirSpec, recurse bool) (map[string]*Package, error) {
 	ctx, err := dir.BuildContext()
 	if err != nil {
 		return nil, err

@@ -58,11 +58,11 @@ func main() {
 		}
 	}
 
-	dir1 := gompatible.DirSpec{VCS: vcsType, Revision: revs[0], Path: path}
+	dir1 := &gompatible.DirSpec{VCS: vcsType, Revision: revs[0], Path: path}
 	pkgs1, err := gompatible.LoadDir(dir1, *flagRecurse)
 	dieIf(err)
 
-	dir2 := gompatible.DirSpec{VCS: vcsType, Revision: revs[1], Path: path}
+	dir2 := &gompatible.DirSpec{VCS: vcsType, Revision: revs[1], Path: path}
 	pkgs2, err := gompatible.LoadDir(dir2, *flagRecurse)
 	dieIf(err)
 

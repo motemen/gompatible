@@ -16,15 +16,20 @@ import (
 	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/hgcmd"
 )
 
+// DirSpec represents a virtual directory which maypoint to a source tree of a
+// specific Revision controlled under a VCS.
 type DirSpec struct {
 	VCS      string
 	Revision string
 	Path     string
 
+	// vcs root directory
+	root string
+
 	ctx *build.Context
 }
 
-func (dir DirSpec) String() string {
+func (dir *DirSpec) String() string {
 	if dir.VCS == "" || dir.Revision == "" {
 		return dir.Path
 	}
@@ -32,14 +37,14 @@ func (dir DirSpec) String() string {
 	return fmt.Sprintf("%s:%s:%s", dir.VCS, dir.Revision, dir.Path)
 }
 
-func (dir DirSpec) Subdir(name string) DirSpec {
+func (dir *DirSpec) Subdir(name string) *DirSpec {
 	ctx, _ := dir.BuildContext() // FIXME
-	dupped := dir
+	dupped := *dir
 	dupped.Path = buildutil.JoinPath(ctx, dir.Path, name)
-	return dupped
+	return &dupped
 }
 
-func (dir DirSpec) ReadDir() ([]os.FileInfo, error) {
+func (dir *DirSpec) ReadDir() ([]os.FileInfo, error) {
 	ctx, err := dir.BuildContext() // FIXME
 	if err != nil {
 		return nil, err
@@ -48,7 +53,7 @@ func (dir DirSpec) ReadDir() ([]os.FileInfo, error) {
 	return buildutil.ReadDir(ctx, dir.Path)
 }
 
-func (dir DirSpec) BuildContext() (*build.Context, error) {
+func (dir *DirSpec) BuildContext() (*build.Context, error) {
 	if dir.ctx != nil {
 		return dir.ctx, nil
 	}
@@ -56,16 +61,19 @@ func (dir DirSpec) BuildContext() (*build.Context, error) {
 	ctx := build.Default // copy
 
 	if dir.VCS != "" && dir.Revision != "" {
-		cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-		cmd.Dir = dir.Path
+		if dir.root == "" {
+			cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+			cmd.Dir = dir.Path // TODO whatif nonexistent directory
 
-		out, err := cmd.Output()
-		if err != nil {
-			return nil, err
+			out, err := cmd.Output()
+			if err != nil {
+				return nil, err
+			}
+
+			dir.root = strings.TrimRight(string(out), "\n")
 		}
 
-		repoRoot := strings.TrimRight(string(out), "\n")
-		repo, err := vcs.Open(dir.VCS, repoRoot)
+		repo, err := vcs.Open(dir.VCS, dir.root)
 		if err != nil {
 			return nil, err
 		}
@@ -81,13 +89,11 @@ func (dir DirSpec) BuildContext() (*build.Context, error) {
 		}
 
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
-			Debugf("OpenFile %s", path)
-
 			if buildutil.IsAbsPath(&ctx, path) {
 				// the path maybe outside of repository (for standard libraries)
-				if strings.HasPrefix(path, repoRoot) {
+				if strings.HasPrefix(path, dir.root) {
 					var err error
-					path, err = filepath.Rel(repoRoot, path)
+					path, err = filepath.Rel(dir.root, path)
 					if err != nil {
 						return nil, err
 					}
@@ -100,12 +106,10 @@ func (dir DirSpec) BuildContext() (*build.Context, error) {
 		}
 
 		ctx.ReadDir = func(path string) ([]os.FileInfo, error) {
-			Debugf("ReadDir %s", path)
-
 			if filepath.IsAbs(path) {
-				if strings.HasPrefix(path, repoRoot) {
+				if strings.HasPrefix(path, dir.root) {
 					var err error
-					path, err = filepath.Rel(repoRoot, path)
+					path, err = filepath.Rel(dir.root, path)
 					if err != nil {
 						return nil, err
 					}
