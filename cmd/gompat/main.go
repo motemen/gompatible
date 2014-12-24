@@ -74,7 +74,10 @@ func main() {
 		)
 	}
 
-	for name, diff := range diffs {
+	var packageIndex int
+	for _, name := range util.SortedStringSet(util.MapKeys(diffs)) {
+		diff := diffs[name]
+
 		var headerShown bool
 		printHeader := func() {
 			if *flagRecurse == false {
@@ -83,8 +86,12 @@ func main() {
 
 			if !headerShown {
 				// FIXME strictly not a package if inspecting local import
+				if packageIndex > 0 {
+					fmt.Println()
+				}
 				fmt.Printf("package %s\n", name)
 				headerShown = true
+				packageIndex++
 			}
 		}
 
