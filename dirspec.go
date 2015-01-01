@@ -26,6 +26,8 @@ type DirSpec struct {
 	// vcs root directory
 	root string
 
+	pkgOverride string
+
 	ctx *build.Context
 }
 

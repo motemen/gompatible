@@ -29,66 +29,16 @@ func typesPackage(source string) (*types.Package, error) {
 	return conf.Check("TEST", fset, []*ast.File{file}, nil)
 }
 
-func TestFuncChange_IsCompatible(t *testing.T) {
-	pkg1, err := typesPackage(`package TEST
-func Unchanged1(n int)
-func Compatible1(n int)
-func Compatible2(n int)
-func Compatible3(n int) error
-func Breaking1(n int)
-func Breaking2(n int) []byte
-func Breaking3(n int, s string)
-func Breaking4(n int) string
-func Removed1()
-
-type RemovedT1 bool
-type UnchangedT1 int
-type UnchangedT2 struct {
-	Foo string
-}
-type CompatibleT1 struct {
-	Foo string
-}
-type CompatibleT2 struct {
-	Foo string
-}
-type BreakingT1 struct {
-	XXX string
-}
-`)
+func TestDiffPackages(t *testing.T) {
+	pkgs1, err := LoadDir(&DirSpec{Path: "testdata/before", pkgOverride: "testdata"}, false)
+	require.NoError(t, err)
+	pkgs2, err := LoadDir(&DirSpec{Path: "testdata/after", pkgOverride: "testdata"}, false)
 	require.NoError(t, err)
 
-	pkg2, err := typesPackage(`package TEST
-func Unchanged1(n int)
-func Compatible1(n int, opts ...string)
-func Compatible2(n int) error
-func Compatible3(m int) error
-func Breaking1(n int, b bool)
-func Breaking2(n int) ([]byte, error)
-func Breaking3(n int)
-func Breaking4(n int) []byte
-func Added1()
+	diff := DiffPackages(pkgs1["testdata"], pkgs2["testdata"])
+	assert.NotEmpty(t, diff.Funcs)
+	assert.NotEmpty(t, diff.Types)
 
-type UnchangedT1 int
-type UnchangedT2 struct {
-	Foo string
-}
-type CompatibleT1 struct {
-	Foo string
-	xxx interface{}
-}
-type CompatibleT2 struct {
-	Foo string
-	Bar bool
-}
-type BreakingT1 struct {
-	YYY int
-}
-type AddedT1 interface{}
-`)
-	require.NoError(t, err)
-
-	diff := DiffPackages(pkg1, pkg2)
 	for name, change := range diff.Funcs {
 		t.Log(ShowChange(change))
 

@@ -25,22 +25,6 @@ type Package struct {
 	Types map[string]*Type
 }
 
-type funcNames map[string]*Func
-
-func (f funcNames) Yield(y func(string)) {
-	for name := range f {
-		y(name)
-	}
-}
-
-type typeNames map[string]*Type
-
-func (f typeNames) Yield(y func(string)) {
-	for name := range f {
-		y(name)
-	}
-}
-
 // Func is a parsed, type-checked and documented function.
 type Func struct {
 	Package *Package
@@ -76,6 +60,9 @@ func listDirFiles(dir *DirSpec, recurse bool) (map[string][]string, error) {
 		importPath := p.ImportPath
 		if importPath == "." {
 			importPath = p.Dir
+		}
+		if dir.pkgOverride != "" {
+			importPath = dir.pkgOverride
 		}
 
 		// XXX something's wrong if packages[importPath] exists already
