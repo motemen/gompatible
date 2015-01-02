@@ -128,8 +128,6 @@ var (
 )
 
 func printChange(c gompatible.Change) {
-	multiline := false
-
 	show := func(mark changeMark, s string) string {
 		lines := strings.Split(s, "\n")
 		for i := range lines {
@@ -140,7 +138,6 @@ func printChange(c gompatible.Change) {
 				fmt.Println(lines[i])
 			} else {
 				fmt.Println(" ", lines[i])
-				multiline = true
 			}
 		}
 
