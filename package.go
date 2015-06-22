@@ -121,15 +121,10 @@ func LoadPackages(ctx *build.Context, filepaths map[string][]string) (map[string
 		Build:               ctx,
 		ParserMode:          parser.ParseComments,
 		TypeCheckFuncBodies: func(_ string) bool { return false },
-		SourceImports:       true, // TODO should be controllable by flags
 	}
 	for path, files := range filepaths {
 		Debugf("CreateFromFilenames %s %v", path, files)
-		err := conf.CreateFromFilenames(path, files...)
-		if err != nil {
-			Debugf("ERR %+v", err)
-			return nil, err
-		}
+		conf.CreateFromFilenames(path, files...)
 	}
 
 	prog, err := conf.Load()
