@@ -4,6 +4,7 @@ func Unchanged1(n int)
 func Compatible1(n int, opts ...string)
 func Compatible2(n int) error
 func Compatible3(m int) error
+func Compatible4(n int) (err error)
 func Breaking1(n int, b bool)
 func Breaking2(n int) ([]byte, error)
 func Breaking3(n int)
