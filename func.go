@@ -4,6 +4,7 @@ import "golang.org/x/tools/go/types"
 
 var _ = Change((*FuncChange)(nil))
 
+// FuncChange represents a change between functions.
 type FuncChange struct {
 	Before *Func
 	After  *Func

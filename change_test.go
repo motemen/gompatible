@@ -1,13 +1,14 @@
 package gompatible
 
 import (
+	"log"
+	"strings"
+	"testing"
+
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"golang.org/x/tools/go/types"
-	"log"
-	"strings"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,9 +69,11 @@ func TestDiffPackages(t *testing.T) {
 			expected = ChangeAdded
 		} else if strings.HasPrefix(name, "Removed") {
 			expected = ChangeRemoved
-		} else {
+		} else if strings.HasPrefix(name, "Breaking") {
 			expected = ChangeBreaking
+		} else {
+			t.Fatalf("unexpected name: %q", name)
 		}
-		assert.Equal(t, expected, change.Kind(), name)
+		assert.Equal(t, expected.String(), change.Kind().String(), name)
 	}
 }

@@ -2,14 +2,15 @@ package gompatible
 
 import (
 	"fmt"
-	"go/build"
-	"golang.org/x/tools/go/buildutil"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"go/build"
+	"golang.org/x/tools/go/buildutil"
 
 	"sourcegraph.com/sourcegraph/go-vcs/vcs"
 	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/gitcmd"

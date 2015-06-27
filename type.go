@@ -7,6 +7,7 @@ import (
 
 var _ = Change((*TypeChange)(nil))
 
+// TypeChange represents a change between two types.
 type TypeChange struct {
 	Before *Type
 	After  *Type
@@ -22,6 +23,9 @@ func (tc TypeChange) ShowAfter() string {
 	return t.Package.showASTNode(t.Doc.Decl)
 }
 
+// XXX
+// []rune and string -- compatible? types.Comvertible?
+
 func (tc TypeChange) Kind() ChangeKind {
 	switch {
 	case tc.Before == nil && tc.After == nil:
@@ -34,7 +38,8 @@ func (tc TypeChange) Kind() ChangeKind {
 	case tc.After == nil:
 		return ChangeRemoved
 
-	case tc.Before.Types.Type().Underlying().String() == tc.After.Types.Type().Underlying().String():
+	case types.Identical(tc.Before.Types.Type().Underlying(), tc.After.Types.Type().Underlying()):
+		Debugf("%s -> %s", tc.Before.Types.Type().Underlying().String(), tc.After.Types.Type().Underlying().String())
 		return ChangeUnchanged
 
 	case tc.isCompatible():

@@ -4,6 +4,7 @@ import (
 	"github.com/motemen/gompatible/util"
 )
 
+// PackageChanges represent changes between two packages.
 type PackageChanges struct {
 	Before *Package
 	After  *Package
@@ -11,6 +12,7 @@ type PackageChanges struct {
 	Types  map[string]TypeChange
 }
 
+// DiffPackages takes two packages to produce the changes between them.
 func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 	diff := PackageChanges{
 		Before: pkg1,

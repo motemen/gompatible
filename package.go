@@ -3,6 +3,7 @@ package gompatible
 import (
 	"bytes"
 	"fmt"
+
 	"go/ast"
 	"go/build"
 	"go/doc"
@@ -213,6 +214,7 @@ func (p *Package) buildTypes() map[string]*Type {
 	return p.Types
 }
 
+// showASTNode takes an AST node to return its string presentation.
 func (p Package) showASTNode(node interface{}) string {
 	var buf bytes.Buffer
 	printer.Fprint(&buf, p.Fset, node)
