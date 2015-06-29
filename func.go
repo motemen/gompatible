@@ -1,8 +1,8 @@
 package gompatible
 
-import "golang.org/x/tools/go/types"
-
-var _ = Change((*FuncChange)(nil))
+import (
+	"golang.org/x/tools/go/types"
+)
 
 // FuncChange represents a change between functions.
 type FuncChange struct {
@@ -32,7 +32,7 @@ func (fc FuncChange) Kind() ChangeKind {
 	case fc.After == nil:
 		return ChangeRemoved
 
-	case fc.Before.Types.String() == fc.After.Types.String():
+	case types.Identical(fc.Before.Types.Type().Underlying(), fc.After.Types.Type().Underlying()):
 		return ChangeUnchanged
 
 	case fc.isCompatible():

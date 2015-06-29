@@ -43,17 +43,19 @@ func TestDiffPackages(t *testing.T) {
 	for name, change := range diff.Funcs {
 		t.Log(ShowChange(change))
 
+		expected := ChangeBreaking
+
 		if strings.HasPrefix(name, "Unchanged") {
-			assert.Equal(t, change.Kind(), ChangeUnchanged)
+			expected = ChangeUnchanged
 		} else if strings.HasPrefix(name, "Compatible") {
-			assert.Equal(t, change.Kind(), ChangeCompatible)
+			expected = ChangeCompatible
 		} else if strings.HasPrefix(name, "Added") {
-			assert.Equal(t, change.Kind(), ChangeAdded)
+			expected = ChangeAdded
 		} else if strings.HasPrefix(name, "Removed") {
-			assert.Equal(t, change.Kind(), ChangeRemoved)
-		} else {
-			assert.Equal(t, change.Kind(), ChangeBreaking)
+			expected = ChangeRemoved
 		}
+
+		assert.Equal(t, expected.String(), change.Kind().String(), name)
 	}
 
 	for name, change := range diff.Types {
