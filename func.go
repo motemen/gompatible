@@ -32,7 +32,11 @@ func (fc FuncChange) Kind() ChangeKind {
 	case fc.After == nil:
 		return ChangeRemoved
 
-	case types.Identical(fc.Before.Types.Type().Underlying(), fc.After.Types.Type().Underlying()):
+	// We do not use types.Identical as we want to identify functions by their signature; not by the details of
+	// parameters or return types, not:
+	//   case types.Identical(fc.Before.Types.Type().Underlying(), fc.After.Types.Type().Underlying()):
+	// TODO: make structs so
+	case types.ObjectString(fc.Before.Types, nil) == types.ObjectString(fc.After.Types, nil):
 		return ChangeUnchanged
 
 	case fc.isCompatible():
