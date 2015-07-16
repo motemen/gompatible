@@ -203,10 +203,32 @@ func (p *Package) buildTypes() map[string]*Type {
 	for _, docT := range p.DocPkg.Types {
 		name := docT.Name
 		if typesT, ok := p.TypesPkg.Scope().Lookup(name).(*types.TypeName); ok {
+			funcs := make(map[string]*Func, len(docT.Funcs))
+			for _, f := range docT.Funcs {
+				funcs[f.Name] = &Func{
+					Package: p,
+					Doc:     f,
+					Types:   p.TypesPkg.Scope().Lookup(f.Name).(*types.Func),
+				}
+			}
+
+			methods := make(map[string]*Func, len(docT.Methods))
+			for _, m := range docT.Methods {
+				// Must be found and be *types.Func
+				obj, _, _ := types.LookupFieldOrMethod(typesT.Type(), true, p.TypesPkg, m.Name)
+				methods[m.Name] = &Func{
+					Package: p,
+					Doc:     m,
+					Types:   obj.(*types.Func),
+				}
+			}
+
 			p.Types[name] = &Type{
 				Package: p,
 				Doc:     docT,
 				Types:   typesT,
+				Funcs:   funcs,
+				Methods: methods,
 			}
 		}
 	}

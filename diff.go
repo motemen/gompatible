@@ -45,9 +45,28 @@ func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 	}
 
 	for _, name := range util.SortedStringSet(util.MapKeys(pkg1.Types), util.MapKeys(pkg2.Types)) {
+		type1 := pkg1.Types[name]
+		type2 := pkg2.Types[name]
+
 		diff.Types[name] = TypeChange{
-			Before: pkg1.Types[name],
-			After:  pkg2.Types[name],
+			Before: type1,
+			After:  type2,
+		}
+
+		if type1 != nil && type2 != nil {
+			for _, fname := range util.SortedStringSet(util.MapKeys(type1.Funcs), util.MapKeys(type2.Funcs)) {
+				diff.Funcs[fname] = FuncChange{
+					Before: type1.Funcs[fname],
+					After:  type2.Funcs[fname],
+				}
+			}
+
+			for _, mname := range util.SortedStringSet(util.MapKeys(type1.Methods), util.MapKeys(type2.Methods)) {
+				diff.Funcs[name+"."+mname] = FuncChange{
+					Before: type1.Methods[mname],
+					After:  type2.Methods[mname],
+				}
+			}
 		}
 	}
 
