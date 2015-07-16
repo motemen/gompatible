@@ -47,6 +47,10 @@ func (fc FuncChange) Kind() ChangeKind {
 	}
 }
 
+// sigParamsCompatible determines if the parameter parts of two signatures of functions are compatible.
+// They are compatible if:
+// - The number of parameters equal and the types of parameters are compatible for each of them.
+// - The latter parameters have exactly one extra parameter which is a variadic parameter.
 func sigParamsCompatible(s1, s2 *types.Signature) bool {
 	extra := tuplesCompatibleExtra(s1.Params(), s2.Params())
 
@@ -101,7 +105,7 @@ func tuplesCompatibleExtra(p1, p2 *types.Tuple) []*types.Var {
 			v1 := p1.At(i)
 			v2 := p2.At(i)
 
-			if v1.Type().String() != v2.Type().String() {
+			if v1.Type().String() != v2.Type().String() { // FIXME
 				return nil
 			}
 		} else {

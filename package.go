@@ -18,12 +18,15 @@ import (
 
 // Package represents a parsed, type-checked and documented package.
 type Package struct {
+	// The types aspect of the package
 	TypesPkg *types.Package
-	DocPkg   *doc.Package
-	Fset     *token.FileSet
+	// The docs aspect of the package
+	DocPkg *doc.Package
 
 	Funcs map[string]*Func
 	Types map[string]*Type
+
+	Fset *token.FileSet
 }
 
 // Func is a parsed, type-checked and documented function.
@@ -38,6 +41,8 @@ type Type struct {
 	Package *Package
 	Types   *types.TypeName
 	Doc     *doc.Type
+	Funcs   map[string]*Func
+	Methods map[string]*Func
 }
 
 // XXX should the return value be a map from dir to files? (currently assumed importPath to files)
@@ -142,12 +147,13 @@ func LoadPackages(ctx *build.Context, filepaths map[string][]string) (map[string
 }
 
 func packageFromInfo(prog *loader.Program, pkgInfo *loader.PackageInfo) *Package {
-	// Ignore (perhaps) "unresolved identifier" errors
 	files := map[string]*ast.File{}
 	for _, f := range pkgInfo.Files {
 		files[prog.Fset.File(f.Pos()).Name()] = f
 
 	}
+
+	// Ignore (perhaps) "unresolved identifier" errors
 	astPkg, _ := ast.NewPackage(prog.Fset, files, nil, nil)
 
 	var mode doc.Mode
@@ -156,20 +162,17 @@ func packageFromInfo(prog *loader.Program, pkgInfo *loader.PackageInfo) *Package
 	return NewPackage(prog.Fset, docPkg, pkgInfo.Pkg)
 }
 
+// NewPackage builds a Package from one from doc and types package.
 func NewPackage(fset *token.FileSet, doc *doc.Package, types *types.Package) *Package {
 	pkg := &Package{
 		Fset:     fset,
 		DocPkg:   doc,
 		TypesPkg: types,
 	}
-	pkg.init()
+	pkg.buildFuncs()
+	pkg.buildTypes()
 
 	return pkg
-}
-
-func (p *Package) init() {
-	p.buildFuncs()
-	p.buildTypes()
 }
 
 func (p *Package) buildFuncs() map[string]*Func {
