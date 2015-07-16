@@ -38,8 +38,7 @@ func (tc TypeChange) Kind() ChangeKind {
 	case tc.After == nil:
 		return ChangeRemoved
 
-	case types.Identical(tc.Before.Types.Type().Underlying(), tc.After.Types.Type().Underlying()):
-		Debugf("%s -> %s", tc.Before.Types.Type().Underlying().String(), tc.After.Types.Type().Underlying().String())
+	case types.ObjectString(tc.Before.Types, nil) == types.ObjectString(tc.After.Types, nil):
 		return ChangeUnchanged
 
 	case tc.isCompatible():
