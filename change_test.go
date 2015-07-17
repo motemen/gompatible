@@ -41,8 +41,6 @@ func TestDiffPackages(t *testing.T) {
 	assert.NotEmpty(t, diff.Types)
 
 	for name, change := range diff.Funcs {
-		t.Log(ShowChange(change))
-
 		expected := ChangeBreaking
 
 		if strings.HasPrefix(name, "Unchanged") {
@@ -55,12 +53,10 @@ func TestDiffPackages(t *testing.T) {
 			expected = ChangeRemoved
 		}
 
-		assert.Equal(t, expected.String(), change.Kind().String(), name)
+		assert.Equal(t, expected.String(), change.Kind().String(), ShowChange(change))
 	}
 
 	for name, change := range diff.Types {
-		t.Log(ShowChange(change))
-
 		var expected ChangeKind
 		name = strings.TrimPrefix(name, "TEST.")
 		if strings.HasPrefix(name, "Unchanged") {
@@ -76,6 +72,7 @@ func TestDiffPackages(t *testing.T) {
 		} else {
 			t.Fatalf("unexpected name: %q", name)
 		}
-		assert.Equal(t, expected.String(), change.Kind().String(), name)
+
+		assert.Equal(t, expected.String(), change.Kind().String(), ShowChange(change))
 	}
 }
