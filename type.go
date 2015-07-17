@@ -24,7 +24,7 @@ func (tc TypeChange) ShowAfter() string {
 }
 
 // XXX
-// []rune and string -- compatible? types.Comvertible?
+// []rune and string -- compatible? types.Convertible?
 
 func (tc TypeChange) Kind() ChangeKind {
 	switch {

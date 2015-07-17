@@ -17,6 +17,9 @@ type UnchangedT1 int
 type UnchangedT2 struct {
 	Foo string
 }
+type UnchangedT3 struct {
+	Foo string
+}
 type CompatibleT1 struct {
 	Foo string
 	xxx interface{}
