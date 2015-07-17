@@ -22,10 +22,12 @@ type UnchangedT3 struct {
 	// Foo is a foo
 	Foo string
 }
-type CompatibleT1 struct {
+
+// Should not care unexported fields
+type UnchangedT4 struct {
 	Foo string
 }
-type CompatibleT2 struct {
+type CompatibleT1 struct {
 	Foo string
 }
 type BreakingT1 struct {

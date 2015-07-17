@@ -40,22 +40,39 @@ func (tc TypeChange) Kind() ChangeKind {
 
 	case types.ObjectString(tc.Before.Types, nil) == types.ObjectString(tc.After.Types, nil):
 		return ChangeUnchanged
+	}
 
-	case tc.isCompatible():
+	switch tc.compatibility() {
+	case compIdentical:
+		return ChangeUnchanged
+
+	case compCompatible:
 		return ChangeCompatible
 
 	default:
 		return ChangeBreaking
 	}
+
+	return ChangeBreaking
 }
 
+type compatibility int
+
+const (
+	compIncompatible compatibility = iota
+	compCompatible
+	compIdentical
+)
+
 // TODO byte <-> uint8, rune <-> int32 compatibility
-func typesCompatible(t1, t2 types.Type) bool {
+func compareTypes(t1, t2 types.Type) compatibility {
 	// If both types are struct, mark them comptabile
 	// iff their public field types are comptabile for each their names (order insensitive)
 
 	if s1, ok := t1.(*types.Struct); ok {
 		if s2, ok := t2.(*types.Struct); ok {
+			identical := true
+
 			fields1 := map[string]*types.Var{}
 			fields2 := map[string]*types.Var{}
 
@@ -74,25 +91,50 @@ func typesCompatible(t1, t2 types.Type) bool {
 
 			for name, f1 := range fields1 {
 				f2, ok := fields2[name]
-				// The new struct type should have fields
+				// For two types to be compatible,
+				// the new struct type should have fields
 				// which the old one had
 				if !ok {
-					return false
+					return compIncompatible
 				}
 
 				// recurse
-				if typesCompatible(f1.Type().Underlying(), f2.Type().Underlying()) == false {
-					return false
+				switch compareTypes(f1.Type().Underlying(), f2.Type().Underlying()) {
+				case compIdentical:
+
+				case compCompatible:
+					identical = false
+
+				case compIncompatible:
+					return compIncompatible
 				}
 			}
 
-			return true
+			for name := range fields2 {
+				// If the newer type has a new field,
+				// two types must not be identical
+				// (yet have a change to be compatible)
+				if _, ok := fields1[name]; !ok {
+					identical = false
+				}
+			}
+
+			if identical {
+				return compIdentical
+			} else {
+				return compCompatible
+			}
 		}
 	}
 
-	return t1.String() == t2.String()
+	// TODO: really ok?
+	if types.TypeString(t1, nil) == types.TypeString(t2, nil) {
+		return compIdentical
+	}
+
+	return compIncompatible
 }
 
-func (tc TypeChange) isCompatible() bool {
-	return typesCompatible(tc.Before.Types.Type().Underlying(), tc.After.Types.Type().Underlying())
+func (tc TypeChange) compatibility() compatibility {
+	return compareTypes(tc.Before.Types.Type().Underlying(), tc.After.Types.Type().Underlying())
 }

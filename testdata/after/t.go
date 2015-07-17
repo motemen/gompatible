@@ -20,11 +20,13 @@ type UnchangedT2 struct {
 type UnchangedT3 struct {
 	Foo string
 }
-type CompatibleT1 struct {
+
+// Should not care unexported fields
+type UnchangedT4 struct {
 	Foo string
 	xxx interface{}
 }
-type CompatibleT2 struct {
+type CompatibleT1 struct {
 	Foo string
 	Bar bool
 }
