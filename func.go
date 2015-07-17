@@ -36,7 +36,7 @@ func (fc FuncChange) Kind() ChangeKind {
 	// parameters or return types, not:
 	//   case types.Identical(fc.Before.Types.Type().Underlying(), fc.After.Types.Type().Underlying()):
 	// TODO: make structs so
-	case types.ObjectString(fc.Before.Types, nil) == types.ObjectString(fc.After.Types, nil):
+	case identicalSansNames(fc.Before.Types, fc.After.Types):
 		return ChangeUnchanged
 
 	case fc.isCompatible():
@@ -45,6 +45,43 @@ func (fc FuncChange) Kind() ChangeKind {
 	default:
 		return ChangeBreaking
 	}
+}
+
+// identicalSansNames compares two functions to check if their types are identical
+// according to the names. e.g.
+//   - It does not care if the names of the parameters or return values differ
+//   - It does not care if the implementations of the types differ
+func identicalSansNames(fa, fb *types.Func) bool {
+	// must always succeed
+	sigA := fa.Type().(*types.Signature)
+	sigB := fb.Type().(*types.Signature)
+
+	var (
+		lenParams  = sigA.Params().Len()
+		lenResults = sigA.Results().Len()
+	)
+
+	if sigB.Params().Len() != lenParams {
+		return false
+	}
+
+	if sigB.Results().Len() != lenResults {
+		return false
+	}
+
+	for i := 0; i < lenParams; i++ {
+		if types.TypeString(sigA.Params().At(i).Type(), nil) != types.TypeString(sigB.Params().At(i).Type(), nil) {
+			return false
+		}
+	}
+
+	for i := 0; i < lenResults; i++ {
+		if types.TypeString(sigA.Results().At(i).Type(), nil) != types.TypeString(sigB.Results().At(i).Type(), nil) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // sigParamsCompatible determines if the parameter parts of two signatures of functions are compatible.
