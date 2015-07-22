@@ -1,5 +1,9 @@
 package gompatible
 
+import (
+	"golang.org/x/tools/go/types"
+)
+
 type ChangeKind int
 
 const (
@@ -28,6 +32,7 @@ func (ck ChangeKind) String() string {
 }
 
 type Change interface {
+	TypesObject() types.Object
 	ShowBefore() string
 	ShowAfter() string
 	Kind() ChangeKind

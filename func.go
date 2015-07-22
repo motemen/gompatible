@@ -10,6 +10,10 @@ type FuncChange struct {
 	After  *Func
 }
 
+func (fc FuncChange) TypesObject() types.Object {
+	return fc.Before.Types
+}
+
 func (fc FuncChange) ShowBefore() string {
 	f := fc.Before
 	return f.Package.showASTNode(f.Doc.Decl)

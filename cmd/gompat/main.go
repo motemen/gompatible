@@ -6,6 +6,7 @@ import (
 	"go/build"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/motemen/gompatible"
@@ -23,6 +24,7 @@ func main() {
 	var (
 		flagAll     = flag.Bool("a", false, "show also unchanged APIs")
 		flagRecurse = flag.Bool("r", false, "recurse into subdirectories")
+		flagDiff    = flag.Bool("d", false, "run `diff` on multi-line changes")
 	)
 	flag.Parse()
 
@@ -99,7 +101,7 @@ func main() {
 			change := diff.Funcs[name]
 			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 				printHeader()
-				printChange(change)
+				printChange(change, *flagDiff)
 			}
 		}
 
@@ -107,7 +109,7 @@ func main() {
 			change := diff.Types[name]
 			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 				printHeader()
-				printChange(change)
+				printChange(change, *flagDiff)
 			}
 		}
 	}
@@ -127,7 +129,9 @@ var (
 	markConfer     = changeMark{". ", ct.None}
 )
 
-func printChange(c gompatible.Change) {
+var rxDiffThunkStart = regexp.MustCompile(`^(?:\x1b\[\d+m)?@@ `)
+
+func printChange(c gompatible.Change, doDiff bool) {
 	show := func(mark changeMark, s string) string {
 		lines := strings.Split(s, "\n")
 		for i := range lines {
@@ -152,8 +156,32 @@ func printChange(c gompatible.Change) {
 	case gompatible.ChangeUnchanged:
 		show(markUnchanged, c.ShowBefore())
 	case gompatible.ChangeCompatible:
-		show(markCompatible, c.ShowBefore())
-		show(markConfer, c.ShowAfter())
+		if doDiff {
+			d, err := diff([]byte(c.ShowBefore()), []byte(c.ShowAfter()))
+			dieIf(err)
+
+			ct.ChangeColor(markCompatible.color, false, ct.None, false)
+			fmt.Print(markCompatible.mark)
+			ct.ResetColor()
+
+			fmt.Println(typesObjectString(c.TypesObject()))
+
+			lines := strings.Split(string(d), "\n")
+			inHeader := true
+			for _, line := range lines {
+				if inHeader {
+					if rxDiffThunkStart.MatchString(line) {
+						inHeader = false
+					} else {
+						continue
+					}
+				}
+				fmt.Println("  " + line)
+			}
+		} else {
+			show(markCompatible, c.ShowBefore())
+			show(markConfer, c.ShowAfter())
+		}
 	case gompatible.ChangeBreaking:
 		fallthrough
 	default:

@@ -13,6 +13,10 @@ type TypeChange struct {
 	After  *Type
 }
 
+func (tc TypeChange) TypesObject() types.Object {
+	return tc.Before.Types
+}
+
 func (tc TypeChange) ShowBefore() string {
 	t := tc.Before
 	return t.Package.showASTNode(t.Doc.Decl)
