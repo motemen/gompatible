@@ -3,11 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"go/build"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"go/build"
 
 	"github.com/motemen/gompatible"
 	"github.com/motemen/gompatible/util"
@@ -17,6 +18,7 @@ import (
 
 func usage() {
 	fmt.Printf("Usage: %s [-a] [-r] <rev1>[..<rev2>] [<import path>[...]]\n", os.Args[0])
+	flag.PrintDefaults()
 	os.Exit(1)
 }
 
@@ -27,6 +29,7 @@ func main() {
 		flagDiff    = flag.Bool("d", false, "run `diff` on multi-line changes")
 	)
 	flag.Parse()
+	flag.Usage = usage
 
 	args := flag.Args()
 	if len(args) < 1 {
@@ -132,7 +135,7 @@ var (
 var rxDiffThunkStart = regexp.MustCompile(`^(?:\x1b\[\d+m)?@@ `)
 
 func printChange(c gompatible.Change, doDiff bool) {
-	show := func(mark changeMark, s string) string {
+	show := func(mark changeMark, s string) {
 		lines := strings.Split(s, "\n")
 		for i := range lines {
 			if i == 0 {
@@ -144,8 +147,6 @@ func printChange(c gompatible.Change, doDiff bool) {
 				fmt.Println(" ", lines[i])
 			}
 		}
-
-		return strings.Join(lines, "\n")
 	}
 
 	switch c.Kind() {
@@ -156,36 +157,38 @@ func printChange(c gompatible.Change, doDiff bool) {
 	case gompatible.ChangeUnchanged:
 		show(markUnchanged, c.ShowBefore())
 	case gompatible.ChangeCompatible:
-		if doDiff {
-			d, err := diff([]byte(c.ShowBefore()), []byte(c.ShowAfter()))
-			dieIf(err)
-
-			ct.ChangeColor(markCompatible.color, false, ct.None, false)
-			fmt.Print(markCompatible.mark)
-			ct.ResetColor()
-
-			fmt.Println(typesObjectString(c.TypesObject()))
-
-			lines := strings.Split(string(d), "\n")
-			inHeader := true
-			for _, line := range lines {
-				if inHeader {
-					if rxDiffThunkStart.MatchString(line) {
-						inHeader = false
-					} else {
-						continue
-					}
-				}
-				fmt.Println("  " + line)
-			}
-		} else {
-			show(markCompatible, c.ShowBefore())
-			show(markConfer, c.ShowAfter())
-		}
+		showCompare(markCompatible, c, show, doDiff)
 	case gompatible.ChangeBreaking:
-		fallthrough
-	default:
-		show(markBreaking, c.ShowBefore())
+		showCompare(markBreaking, c, show, doDiff)
+	}
+}
+
+func showCompare(mark changeMark, c gompatible.Change, show func(changeMark, string), doDiff bool) {
+	if doDiff == false {
+		show(mark, c.ShowBefore())
 		show(markConfer, c.ShowAfter())
+		return
+	}
+
+	d, err := diff([]byte(c.ShowBefore()), []byte(c.ShowAfter()))
+	dieIf(err)
+
+	ct.ChangeColor(mark.color, false, ct.None, false)
+	fmt.Print(mark.mark)
+	ct.ResetColor()
+
+	fmt.Println(typesObjectString(c.TypesObject()))
+
+	lines := strings.Split(string(d), "\n")
+	inHeader := true
+	for _, line := range lines {
+		if inHeader {
+			if rxDiffThunkStart.MatchString(line) {
+				inHeader = false
+			} else {
+				continue
+			}
+		}
+		fmt.Println("  " + line)
 	}
 }
