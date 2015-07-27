@@ -13,8 +13,10 @@ import (
 	"golang.org/x/tools/go/buildutil"
 
 	"sourcegraph.com/sourcegraph/go-vcs/vcs"
-	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/gitcmd"
 	_ "sourcegraph.com/sourcegraph/go-vcs/vcs/hgcmd"
+
+	// _ "sourcegraph.com/sourcegraph/go-vcs/vcs/gitcmd"
+	_ "github.com/motemen/go-vcs-gitcmd-fastopen"
 )
 
 // DirSpec represents a virtual directory which maypoint to a source tree of a
