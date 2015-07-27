@@ -38,8 +38,10 @@ func main() {
 
 	vcsType := "git" // TODO auto-detect
 
-	revs := strings.Split(args[0], "..")
-	if len(revs) < 2 || revs[1] == "" {
+	revs := strings.SplitN(args[0], "..", 2)
+	if len(revs) == 1 {
+		revs = []string{revs[0] + "~1", revs[0]}
+	} else if revs[1] == "" {
 		revs = []string{revs[0], ""}
 	}
 
