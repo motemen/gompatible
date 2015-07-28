@@ -12,6 +12,14 @@ type PackageChanges struct {
 	Types  map[string]TypeChange
 }
 
+func (pc PackageChanges) Path() string {
+	if pc.Before != nil {
+		return pc.Before.TypesPkg.Path()
+	}
+
+	return pc.After.TypesPkg.Path()
+}
+
 // DiffPackages takes two packages to produce the changes between them.
 func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 	diff := PackageChanges{

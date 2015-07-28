@@ -16,11 +16,17 @@ func (fc FuncChange) TypesObject() types.Object {
 
 func (fc FuncChange) ShowBefore() string {
 	f := fc.Before
+	if f == nil || f.Doc == nil {
+		return ""
+	}
 	return f.Package.showASTNode(f.Doc.Decl)
 }
 
 func (fc FuncChange) ShowAfter() string {
 	f := fc.After
+	if f == nil || f.Doc == nil {
+		return ""
+	}
 	return f.Package.showASTNode(f.Doc.Decl)
 }
 
