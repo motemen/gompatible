@@ -47,7 +47,7 @@ type Type struct {
 
 // XXX should the return value be a map from dir to files? (currently assumed importPath to files)
 func listDirFiles(dir *DirSpec, recurse bool) (map[string][]string, error) {
-	ctx, err := dir.BuildContext()
+	ctx, err := dir.buildContext()
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func listDirFiles(dir *DirSpec, recurse bool) (map[string][]string, error) {
 }
 
 func LoadDir(dir *DirSpec, recurse bool) (map[string]*Package, error) {
-	ctx, err := dir.BuildContext()
+	ctx, err := dir.buildContext()
 	if err != nil {
 		return nil, err
 	}

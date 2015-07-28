@@ -43,14 +43,14 @@ func (dir *DirSpec) String() string {
 }
 
 func (dir *DirSpec) Subdir(name string) *DirSpec {
-	ctx, _ := dir.BuildContext() // FIXME
+	ctx, _ := dir.buildContext() // FIXME
 	dupped := *dir
 	dupped.Path = buildutil.JoinPath(ctx, dir.Path, name)
 	return &dupped
 }
 
 func (dir *DirSpec) ReadDir() ([]os.FileInfo, error) {
-	ctx, err := dir.BuildContext() // FIXME
+	ctx, err := dir.buildContext() // FIXME
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (dir *DirSpec) ReadDir() ([]os.FileInfo, error) {
 	return buildutil.ReadDir(ctx, dir.Path)
 }
 
-func (dir *DirSpec) BuildContext() (*build.Context, error) {
+func (dir *DirSpec) buildContext() (*build.Context, error) {
 	if dir.ctx != nil {
 		return dir.ctx, nil
 	}
