@@ -4,11 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
-
-	"go/build"
 
 	"github.com/motemen/gompatible"
 	"github.com/motemen/gompatible/util"
@@ -53,23 +50,17 @@ func main() {
 			path = strings.TrimSuffix(path, "...")
 			*flagRecurse = true
 		}
-
-		if build.IsLocalImport(path) == false {
-			for _, srcDir := range build.Default.SrcDirs() {
-				pkgPath := filepath.Join(srcDir, path)
-				if _, err := os.Stat(pkgPath); err == nil {
-					path = pkgPath
-					break
-				}
-			}
-		}
 	}
 
-	dir1 := &gompatible.DirSpec{VCS: vcsType, Revision: revs[0], Path: path}
+	dir1, err := gompatible.NewDirSpec(path, vcsType, revs[0])
+	dieIf(err)
+
 	pkgs1, err := gompatible.LoadDir(dir1, *flagRecurse)
 	dieIf(err)
 
-	dir2 := &gompatible.DirSpec{VCS: vcsType, Revision: revs[1], Path: path}
+	dir2, err := gompatible.NewDirSpec(path, vcsType, revs[1])
+	dieIf(err)
+
 	pkgs2, err := gompatible.LoadDir(dir2, *flagRecurse)
 	dieIf(err)
 

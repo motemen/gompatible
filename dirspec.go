@@ -19,7 +19,7 @@ import (
 	_ "github.com/motemen/go-vcs-gitcmd-fastopen"
 )
 
-// DirSpec represents a virtual directory which maypoint to a source tree of a
+// DirSpec represents a virtual directory which may point to a source tree of a
 // specific Revision controlled under a VCS.
 type DirSpec struct {
 	VCS      string
@@ -32,6 +32,39 @@ type DirSpec struct {
 	pkgOverride string
 
 	ctx *build.Context
+}
+
+// NewDirSpec creates a virtual directory which may point to a source tree of a
+// specific revision controlled under a vcs.
+// The path may be one of:
+//   - An absolute path
+//   - An import path
+//   - A relative import path
+func NewDirSpec(path, vcs, revision string) (*DirSpec, error) {
+	if _, err := os.Stat(path); err != nil {
+		bPkg, err := build.Default.Import(path, ".", build.FindOnly)
+		if err != nil {
+			return nil, err
+		}
+
+		path = bPkg.Dir
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
+	}
+
+	dir := &DirSpec{
+		VCS:      vcs,
+		Revision: revision,
+		Path:     path,
+	}
+
+	if _, err := dir.buildContext(); err != nil {
+		return nil, err
+	}
+
+	return dir, nil
 }
 
 func (dir *DirSpec) String() string {
