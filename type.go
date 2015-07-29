@@ -5,8 +5,6 @@ import (
 	"golang.org/x/tools/go/types"
 )
 
-var _ = Change((*TypeChange)(nil))
-
 // TypeChange represents a change between two types.
 type TypeChange struct {
 	Before *Type
@@ -19,11 +17,17 @@ func (tc TypeChange) TypesObject() types.Object {
 
 func (tc TypeChange) ShowBefore() string {
 	t := tc.Before
+	if t == nil || t.Doc == nil {
+		return ""
+	}
 	return t.Package.showASTNode(t.Doc.Decl)
 }
 
 func (tc TypeChange) ShowAfter() string {
 	t := tc.After
+	if t == nil || t.Doc == nil {
+		return ""
+	}
 	return t.Package.showASTNode(t.Doc.Decl)
 }
 
