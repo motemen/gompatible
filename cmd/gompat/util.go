@@ -37,7 +37,7 @@ func diff(a, b []byte) ([]byte, error) {
 	f1.Write(append(a, '\n'))
 	f2.Write(append(b, '\n'))
 
-	out, err := exec.Command("git", "diff", "--no-index", "--color", f1.Name(), f2.Name()).Output()
+	out, err := exec.Command("git", "diff", "--no-index", "--ignore-all-space", "--color", f1.Name(), f2.Name()).Output()
 	if len(out) > 0 {
 		err = nil
 	}
