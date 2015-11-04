@@ -17,15 +17,15 @@ const (
 func (ck ChangeKind) String() string {
 	switch ck {
 	case ChangeUnchanged:
-		return "ChangeUnchanged"
+		return "Unchanged"
 	case ChangeAdded:
-		return "ChangeAdded"
+		return "Added"
 	case ChangeRemoved:
-		return "ChangeRemoved"
+		return "Removed"
 	case ChangeCompatible:
-		return "ChangeCompatible"
+		return "Compatible"
 	case ChangeBreaking:
-		return "ChangeBreaking"
+		return "Breaking"
 	}
 
 	return ""
