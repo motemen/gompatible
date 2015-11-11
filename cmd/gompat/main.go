@@ -93,16 +93,18 @@ func main() {
 			}
 		}
 
-		for _, name := range util.SortedStringSet(util.MapKeys(diff.Funcs)) {
-			change := diff.Funcs[name]
+		funcs := diff.Funcs()
+		for _, name := range util.SortedStringSet(util.MapKeys(funcs)) {
+			change := funcs[name]
 			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 				printHeader()
 				printChange(change, *flagDiff)
 			}
 		}
 
-		for _, name := range util.SortedStringSet(util.MapKeys(diff.Types)) {
-			change := diff.Types[name]
+		types := diff.Types()
+		for _, name := range util.SortedStringSet(util.MapKeys(types)) {
+			change := types[name]
 			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 				printHeader()
 				printChange(change, *flagDiff)

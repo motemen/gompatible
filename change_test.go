@@ -37,10 +37,10 @@ func TestDiffPackages(t *testing.T) {
 	require.NoError(t, err)
 
 	diff := DiffPackages(pkgs1["testdata"], pkgs2["testdata"])
-	assert.NotEmpty(t, diff.Funcs)
-	assert.NotEmpty(t, diff.Types)
+	assert.NotEmpty(t, diff.Funcs())
+	assert.NotEmpty(t, diff.Types())
 
-	for name, change := range diff.Funcs {
+	for name, change := range diff.Funcs() {
 		expected := ChangeBreaking
 
 		if strings.HasPrefix(name, "Unchanged") {
@@ -56,7 +56,7 @@ func TestDiffPackages(t *testing.T) {
 		assert.Equal(t, expected.String(), change.Kind().String(), ShowChange(change))
 	}
 
-	for name, change := range diff.Types {
+	for name, change := range diff.Types() {
 		var expected ChangeKind
 		name = strings.TrimPrefix(name, "TEST.")
 		if strings.HasPrefix(name, "Unchanged") {
