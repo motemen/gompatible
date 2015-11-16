@@ -1,7 +1,7 @@
 package gompatible
 
 import (
-	"github.com/motemen/gompatible/util"
+	"github.com/motemen/gompatible/internal/util"
 )
 
 type ObjectCategory string

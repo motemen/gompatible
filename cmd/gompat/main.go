@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/motemen/gompatible"
-	"github.com/motemen/gompatible/util"
+	"github.com/motemen/gompatible/internal/util"
 
 	"github.com/daviddengcn/go-colortext"
 )
