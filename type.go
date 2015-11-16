@@ -135,10 +135,29 @@ func compareTypes(t1, t2 types.Type) compatibility {
 		}
 	}
 
-	// TODO: really ok?
+	// TODO: is it really ok?
 	if types.TypeString(t1, nil) == types.TypeString(t2, nil) {
 		return compIdentical
 	}
+
+	// TODO use types.AssignableTo here
+
+	if bt1, ok := t1.(*types.Basic); ok {
+		if bt2, ok := t2.(*types.Basic); ok {
+			// eg. untyped string -> string
+			if bt1.Info()&types.IsUntyped != 0 {
+				if bt1.Info()&bt2.Info() == bt1.Info()^types.IsUntyped {
+					return compCompatible
+				}
+			}
+		}
+	}
+	if !types.ConvertibleTo(types.Typ[types.String], types.Typ[types.String]) {
+		panic("")
+	}
+
+	// TODO: basic type -> aliased basic type
+	// e.g. int -> A with "type A int"
 
 	return compIncompatible
 }

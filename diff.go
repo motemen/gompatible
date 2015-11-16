@@ -7,8 +7,9 @@ import (
 type ObjectCategory string
 
 const (
-	ObjectCategoryFunc ObjectCategory = "func"
-	ObjectCategoryType ObjectCategory = "type"
+	ObjectCategoryFunc  ObjectCategory = "func"
+	ObjectCategoryType  ObjectCategory = "type"
+	ObjectCategoryValue ObjectCategory = "value"
 )
 
 // PackageChanges represent changes between two packages.
@@ -44,14 +45,24 @@ func (pc PackageChanges) Types() map[string]TypeChange {
 	return m
 }
 
+func (pc PackageChanges) Values() map[string]ValueChange {
+	changes := pc.Changes[ObjectCategoryValue]
+	m := make(map[string]ValueChange, len(changes))
+	for k, c := range changes {
+		m[k] = c.(ValueChange)
+	}
+	return m
+}
+
 // DiffPackages takes two packages to produce the changes between them.
 func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 	diff := PackageChanges{
 		Before: pkg1,
 		After:  pkg2,
 		Changes: map[ObjectCategory]map[string]Change{
-			ObjectCategoryFunc: {},
-			ObjectCategoryType: {},
+			ObjectCategoryFunc:  {},
+			ObjectCategoryType:  {},
+			ObjectCategoryValue: {},
 		},
 	}
 
@@ -101,6 +112,14 @@ func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 					After:  type2.Methods[mname],
 				}
 			}
+		}
+	}
+
+	for _, name := range util.SortedStringSet(util.MapKeys(pkg1.Values), util.MapKeys(pkg2.Values)) {
+		Debugf("%q", name)
+		diff.Changes[ObjectCategoryValue][name] = ValueChange{
+			Before: pkg1.Values[name],
+			After:  pkg2.Values[name],
 		}
 	}
 

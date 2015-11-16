@@ -34,3 +34,18 @@ type BreakingT1 struct {
 	YYY int
 }
 type AddedT1 interface{}
+
+var UnchangedV1 int
+
+var BreakingV1 bool
+
+const BreakingV2 int = 0
+
+var CompatibleV1 struct {
+	Foo int
+	Bar int
+}
+
+var CompatibleV2 string
+
+var AddedV1 int

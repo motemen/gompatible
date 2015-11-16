@@ -33,3 +33,17 @@ type CompatibleT1 struct {
 type BreakingT1 struct {
 	XXX string
 }
+
+var UnchangedV1 int
+
+var BreakingV1 []string
+
+var BreakingV2 int
+
+var CompatibleV1 struct {
+	Foo int
+}
+
+const CompatibleV2 = ""
+
+var RemovedV1 int

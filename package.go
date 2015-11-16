@@ -23,26 +23,35 @@ type Package struct {
 	// The docs aspect of the package
 	DocPkg *doc.Package
 
-	Funcs map[string]*Func
-	Types map[string]*Type
+	Funcs  map[string]*Func
+	Types  map[string]*Type
+	Values map[string]*Value
 
 	Fset *token.FileSet
 }
 
-// Func is a parsed, type-checked and documented function.
+// Func is a syntactically parsed, type-checked and (maybe) documented function.
 type Func struct {
 	Package *Package
 	Types   *types.Func
 	Doc     *doc.Func
 }
 
-// Type is a parsed, type-checked and documented type declaration.
+// Type is a syntactically parsed, type-checked and (maybe) documented type declaration.
 type Type struct {
 	Package *Package
 	Types   *types.TypeName
 	Doc     *doc.Type
 	Funcs   map[string]*Func
 	Methods map[string]*Func
+}
+
+// Value is a syntactically parsed, type-checked and (maybe) documented toplevel value (var or const).
+type Value struct {
+	Package *Package
+	Doc     *doc.Value
+	Types   types.Object // *types.Var (IsConst == false) or *types.Const (IsConst == true)
+	IsConst bool
 }
 
 // XXX should the return value be a map from dir to files? (currently assumed importPath to files)
@@ -171,6 +180,7 @@ func NewPackage(fset *token.FileSet, doc *doc.Package, types *types.Package) *Pa
 	}
 	pkg.buildFuncs()
 	pkg.buildTypes()
+	pkg.buildValues()
 
 	return pkg
 }
@@ -237,6 +247,39 @@ func (p *Package) buildTypes() map[string]*Type {
 	}
 
 	return p.Types
+}
+
+func (p *Package) buildValues() map[string]*Value {
+	if p.Values != nil {
+		return p.Values
+	}
+
+	p.Values = map[string]*Value{}
+
+	docValues := append(p.DocPkg.Vars, p.DocPkg.Consts...)
+	for _, docV := range docValues {
+		for _, name := range docV.Names {
+			switch typesV := p.TypesPkg.Scope().Lookup(name).(type) {
+			case *types.Var:
+				p.Values[name] = &Value{
+					Package: p,
+					Doc:     docV,
+					Types:   typesV,
+					IsConst: false,
+				}
+
+			case *types.Const:
+				p.Values[name] = &Value{
+					Package: p,
+					Doc:     docV,
+					Types:   typesV,
+					IsConst: true,
+				}
+			}
+		}
+	}
+
+	return p.Values
 }
 
 // showASTNode takes an AST node to return its string presentation.
