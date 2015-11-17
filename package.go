@@ -159,7 +159,6 @@ func packageFromInfo(prog *loader.Program, pkgInfo *loader.PackageInfo) *Package
 	files := map[string]*ast.File{}
 	for _, f := range pkgInfo.Files {
 		files[prog.Fset.File(f.Pos()).Name()] = f
-
 	}
 
 	// Ignore (perhaps) "unresolved identifier" errors
@@ -257,6 +256,11 @@ func (p *Package) buildValues() map[string]*Value {
 	p.Values = map[string]*Value{}
 
 	docValues := append(p.DocPkg.Vars, p.DocPkg.Consts...)
+	for _, docT := range p.DocPkg.Types {
+		docValues = append(docValues, docT.Vars...)
+		docValues = append(docValues, docT.Consts...)
+	}
+
 	for _, docV := range docValues {
 		for _, name := range docV.Names {
 			switch typesV := p.TypesPkg.Scope().Lookup(name).(type) {

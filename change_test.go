@@ -39,9 +39,10 @@ func TestDiffPackages(t *testing.T) {
 	diff := DiffPackages(pkgs1["testdata"], pkgs2["testdata"])
 	assert.NotEmpty(t, diff.Funcs())
 	assert.NotEmpty(t, diff.Types())
+	assert.NotEmpty(t, diff.Values())
 
 	for name, change := range diff.Funcs() {
-		expected := ChangeBreaking
+		var expected ChangeKind
 
 		if strings.HasPrefix(name, "Unchanged") {
 			expected = ChangeUnchanged
@@ -51,6 +52,12 @@ func TestDiffPackages(t *testing.T) {
 			expected = ChangeAdded
 		} else if strings.HasPrefix(name, "Removed") {
 			expected = ChangeRemoved
+		} else if strings.HasPrefix(name, "Breaking") {
+			expected = ChangeBreaking
+		} else if strings.HasPrefix(name, "Aux") {
+			continue
+		} else {
+			t.Fatalf("unexpected name: %q", name)
 		}
 
 		assert.Equal(t, expected.String(), change.Kind().String(), ShowChange(change))
@@ -69,6 +76,8 @@ func TestDiffPackages(t *testing.T) {
 			expected = ChangeRemoved
 		} else if strings.HasPrefix(name, "Breaking") {
 			expected = ChangeBreaking
+		} else if strings.HasPrefix(name, "Aux") {
+			continue
 		} else {
 			t.Fatalf("unexpected name: %q", name)
 		}
@@ -89,10 +98,14 @@ func TestDiffPackages(t *testing.T) {
 			expected = ChangeRemoved
 		} else if strings.HasPrefix(name, "Breaking") {
 			expected = ChangeBreaking
+		} else if strings.HasPrefix(name, "Aux") {
+			continue
 		} else {
 			t.Fatalf("unexpected name: %q", name)
 		}
 
 		assert.Equal(t, expected.String(), change.Kind().String(), ShowChange(change))
 	}
+
+	t.Logf("%#v", pkgs2["testdata"].Values)
 }

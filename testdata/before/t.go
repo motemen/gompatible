@@ -46,4 +46,6 @@ var CompatibleV1 struct {
 
 const CompatibleV2 = ""
 
+var BreakingV3 int
+
 var RemovedV1 int
