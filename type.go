@@ -78,59 +78,7 @@ func compareTypes(t1, t2 types.Type) compatibility {
 
 	if s1, ok := t1.(*types.Struct); ok {
 		if s2, ok := t2.(*types.Struct); ok {
-			identical := true
-
-			fields1 := map[string]*types.Var{}
-			fields2 := map[string]*types.Var{}
-
-			for i := 0; i < s1.NumFields(); i++ {
-				f := s1.Field(i)
-				if f.Exported() {
-					fields1[f.Name()] = f
-				}
-			}
-			for i := 0; i < s2.NumFields(); i++ {
-				f := s2.Field(i)
-				if f.Exported() {
-					fields2[f.Name()] = f
-				}
-			}
-
-			for name, f1 := range fields1 {
-				f2, ok := fields2[name]
-				// For two types to be compatible,
-				// the new struct type should have fields
-				// which the old one had
-				if !ok {
-					return compIncompatible
-				}
-
-				// recurse
-				switch compareTypes(f1.Type().Underlying(), f2.Type().Underlying()) {
-				case compIdentical:
-
-				case compCompatible:
-					identical = false
-
-				case compIncompatible:
-					return compIncompatible
-				}
-			}
-
-			for name := range fields2 {
-				// If the newer type has a new field,
-				// two types must not be identical
-				// (yet have a change to be compatible)
-				if _, ok := fields1[name]; !ok {
-					identical = false
-				}
-			}
-
-			if identical {
-				return compIdentical
-			} else {
-				return compCompatible
-			}
+			return compareStructs(s1, s2)
 		}
 	}
 
@@ -159,6 +107,62 @@ func compareTypes(t1, t2 types.Type) compatibility {
 	}
 
 	return compIncompatible
+}
+
+func compareStructs(s1, s2 *types.Struct) compatibility {
+	identical := true
+
+	fields1 := map[string]*types.Var{}
+	fields2 := map[string]*types.Var{}
+
+	for i := 0; i < s1.NumFields(); i++ {
+		f := s1.Field(i)
+		if f.Exported() {
+			fields1[f.Name()] = f
+		}
+	}
+	for i := 0; i < s2.NumFields(); i++ {
+		f := s2.Field(i)
+		if f.Exported() {
+			fields2[f.Name()] = f
+		}
+	}
+
+	for name, f1 := range fields1 {
+		f2, ok := fields2[name]
+		// For two types to be compatible,
+		// the new struct type should have fields
+		// which the old one had
+		if !ok {
+			return compIncompatible
+		}
+
+		// recurse
+		switch compareTypes(f1.Type().Underlying(), f2.Type().Underlying()) {
+		case compIdentical:
+
+		case compCompatible:
+			identical = false
+
+		case compIncompatible:
+			return compIncompatible
+		}
+	}
+
+	for name := range fields2 {
+		// If the newer type has a new field,
+		// two types must not be identical
+		// (yet have a change to be compatible)
+		if _, ok := fields1[name]; !ok {
+			identical = false
+		}
+	}
+
+	if identical {
+		return compIdentical
+	} else {
+		return compCompatible
+	}
 }
 
 func (tc TypeChange) compatibility() compatibility {
