@@ -152,9 +152,6 @@ func compareTypes(t1, t2 types.Type) compatibility {
 			}
 		}
 	}
-	if !types.ConvertibleTo(types.Typ[types.String], types.Typ[types.String]) {
-		panic("")
-	}
 
 	// TODO: basic type -> aliased basic type
 	// e.g. int -> A with "type A int"

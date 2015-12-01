@@ -106,6 +106,4 @@ func TestDiffPackages(t *testing.T) {
 
 		assert.Equal(t, expected.String(), change.Kind().String(), ShowChange(change))
 	}
-
-	t.Logf("%#v", pkgs2["testdata"].Values)
 }
