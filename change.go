@@ -4,6 +4,7 @@ import (
 	"golang.org/x/tools/go/types"
 )
 
+// ChangeKind represents the kind of a change of an API between two revisions.
 type ChangeKind int
 
 const (
@@ -31,6 +32,7 @@ func (ck ChangeKind) String() string {
 	return ""
 }
 
+// A Change represents a change of an API between two revisions.
 type Change interface {
 	TypesObject() types.Object
 	ShowBefore() string
@@ -38,6 +40,7 @@ type Change interface {
 	Kind() ChangeKind
 }
 
+// ShowChange returns a string represnetation of an API change.
 func ShowChange(c Change) string {
 	switch c.Kind() {
 	case ChangeAdded:

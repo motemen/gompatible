@@ -4,6 +4,7 @@ import (
 	"github.com/motemen/gompatible/internal/util"
 )
 
+// ObjectCategory is the category of API.
 type ObjectCategory string
 
 const (
@@ -19,6 +20,7 @@ type PackageChanges struct {
 	Changes map[ObjectCategory]map[string]Change
 }
 
+// Path is the import path of the package.
 func (pc PackageChanges) Path() string {
 	if pc.Before != nil {
 		return pc.Before.TypesPkg.Path()
@@ -27,6 +29,7 @@ func (pc PackageChanges) Path() string {
 	return pc.After.TypesPkg.Path()
 }
 
+// Funcs returns API changes of functions.
 func (pc PackageChanges) Funcs() map[string]FuncChange {
 	changes := pc.Changes[ObjectCategoryFunc]
 	m := make(map[string]FuncChange, len(changes))
@@ -36,6 +39,7 @@ func (pc PackageChanges) Funcs() map[string]FuncChange {
 	return m
 }
 
+// Types returns API changes of types.
 func (pc PackageChanges) Types() map[string]TypeChange {
 	changes := pc.Changes[ObjectCategoryType]
 	m := make(map[string]TypeChange, len(changes))
@@ -45,6 +49,7 @@ func (pc PackageChanges) Types() map[string]TypeChange {
 	return m
 }
 
+// Types returns API changes of values eg. consts and vars.
 func (pc PackageChanges) Values() map[string]ValueChange {
 	changes := pc.Changes[ObjectCategoryValue]
 	m := make(map[string]ValueChange, len(changes))
@@ -66,21 +71,6 @@ func DiffPackages(pkg1, pkg2 *Package) PackageChanges {
 		},
 	}
 
-	// FIXME
-	if pkg1 == nil {
-		pkg1 = &Package{
-			Funcs: map[string]*Func{},
-			Types: map[string]*Type{},
-		}
-	}
-	if pkg2 == nil {
-		pkg2 = &Package{
-			Funcs: map[string]*Func{},
-			Types: map[string]*Type{},
-		}
-	}
-
-	Debugf("%+v %+v", pkg1, pkg2)
 	for _, name := range util.SortedStringSet(util.MapKeys(pkg1.Funcs), util.MapKeys(pkg2.Funcs)) {
 		Debugf("%q", name)
 		diff.Changes[ObjectCategoryFunc][name] = FuncChange{
