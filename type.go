@@ -31,13 +31,10 @@ func (tc TypeChange) ShowAfter() string {
 	return t.Package.showASTNode(t.Doc.Decl)
 }
 
-// XXX
-// []rune and string -- compatible? types.Convertible?
-
 func (tc TypeChange) Kind() ChangeKind {
 	switch {
 	case tc.Before == nil && tc.After == nil:
-		// XXX
+		// might not happen
 		return ChangeUnchanged
 
 	case tc.Before == nil:
@@ -64,6 +61,11 @@ func (tc TypeChange) Kind() ChangeKind {
 	return ChangeBreaking
 }
 
+// FIXME: acutally the type compatibility has direction,
+// namely more specific to more general (eg. struct to interface) and the opposite.
+// In function parameters the former case will be compatible,
+// while in function results the latter case will.
+
 type compatibility int
 
 const (
@@ -86,8 +88,6 @@ func compareTypes(t1, t2 types.Type) compatibility {
 	if types.TypeString(t1, nil) == types.TypeString(t2, nil) {
 		return compIdentical
 	}
-
-	// TODO use types.AssignableTo here
 
 	if bt1, ok := t1.(*types.Basic); ok {
 		if bt2, ok := t2.(*types.Basic); ok {

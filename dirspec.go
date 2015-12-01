@@ -101,7 +101,7 @@ func (dir *DirSpec) buildContext() (*build.Context, error) {
 	if dir.VCS != "" && dir.Revision != "" {
 		if dir.root == "" {
 			cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-			cmd.Dir = dir.Path // TODO whatif nonexistent directory
+			cmd.Dir = dir.Path
 
 			out, err := cmd.Output()
 			if err != nil {

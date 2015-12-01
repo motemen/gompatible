@@ -33,7 +33,8 @@ func main() {
 		usage()
 	}
 
-	vcsType := "git" // TODO auto-detect
+	// TODO: support mercurial and other vcs
+	vcsType := "git"
 
 	revs := strings.SplitN(args[0], "..", 2)
 	if len(revs) == 1 {

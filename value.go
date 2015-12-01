@@ -32,7 +32,7 @@ func (vc ValueChange) ShowAfter() string {
 func (vc ValueChange) Kind() ChangeKind {
 	switch {
 	case vc.Before == nil && vc.After == nil:
-		// XXX
+		// might not happen
 		return ChangeUnchanged
 
 	case vc.Before == nil:

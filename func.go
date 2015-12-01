@@ -33,7 +33,7 @@ func (fc FuncChange) ShowAfter() string {
 func (fc FuncChange) Kind() ChangeKind {
 	switch {
 	case fc.Before == nil && fc.After == nil:
-		// XXX
+		// might not happen
 		return ChangeUnchanged
 
 	case fc.Before == nil:
@@ -45,7 +45,6 @@ func (fc FuncChange) Kind() ChangeKind {
 	// We do not use types.Identical as we want to identify functions by their signature; not by the details of
 	// parameters or return types, not:
 	//   case types.Identical(fc.Before.Types.Type().Underlying(), fc.After.Types.Type().Underlying()):
-	// TODO: make structs so
 	case identicalSansNames(fc.Before.Types, fc.After.Types):
 		return ChangeUnchanged
 
