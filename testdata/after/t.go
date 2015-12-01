@@ -53,3 +53,5 @@ var CompatibleV2 string
 var BreakingV3 AuxInt
 
 var AddedV1 int
+
+type CompatibleT3 uint8

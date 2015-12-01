@@ -72,7 +72,6 @@ const (
 	compIdentical
 )
 
-// TODO byte <-> uint8, rune <-> int32 compatibility
 func compareTypes(t1, t2 types.Type) compatibility {
 	// If both types are struct, mark them comptabile
 	// iff their public field types are comptabile for each their names (order insensitive)
@@ -150,11 +149,14 @@ func compareTypes(t1, t2 types.Type) compatibility {
 					return compCompatible
 				}
 			}
+
+			// Names differ, but the basic kind is the same
+			// eg. uint8 vs byte
+			if bt1.Kind() == bt2.Kind() {
+				return compCompatible
+			}
 		}
 	}
-
-	// TODO: basic type -> aliased basic type
-	// e.g. int -> A with "type A int"
 
 	return compIncompatible
 }

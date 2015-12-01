@@ -49,3 +49,5 @@ const CompatibleV2 = ""
 var BreakingV3 int
 
 var RemovedV1 int
+
+type CompatibleT3 byte
