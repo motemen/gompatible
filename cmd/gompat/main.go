@@ -110,6 +110,15 @@ func main() {
 				printChange(change, *flagDiff)
 			}
 		}
+
+		values := diff.Values()
+		for _, name := range util.SortedStringSet(util.MapKeys(values)) {
+			change := values[name]
+			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
+				printHeader()
+				printChange(change, *flagDiff)
+			}
+		}
 	}
 }
 
