@@ -75,15 +75,8 @@ func (dir *DirSpec) String() string {
 	return fmt.Sprintf("%s:%s:%s", dir.VCS, dir.Revision, dir.Path)
 }
 
-func (dir *DirSpec) Subdir(name string) *DirSpec {
-	ctx, _ := dir.buildContext() // FIXME
-	dupped := *dir
-	dupped.Path = buildutil.JoinPath(ctx, dir.Path, name)
-	return &dupped
-}
-
 func (dir *DirSpec) ReadDir() ([]os.FileInfo, error) {
-	ctx, err := dir.buildContext() // FIXME
+	ctx, err := dir.buildContext()
 	if err != nil {
 		return nil, err
 	}

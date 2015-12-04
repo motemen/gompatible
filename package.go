@@ -105,7 +105,11 @@ func listDirFiles(dir *DirSpec, recurse bool) (map[string][]string, error) {
 			continue
 		}
 
-		pkgs, err := listDirFiles(dir.Subdir(e.Name()), recurse)
+		// copy
+		subdir := *dir
+		subdir.Path = buildutil.JoinPath(ctx, dir.Path, e.Name())
+
+		pkgs, err := listDirFiles(&subdir, recurse)
 		if err != nil {
 			return nil, err
 		}
