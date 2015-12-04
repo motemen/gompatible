@@ -1,5 +1,10 @@
 package testdata
 
+import (
+	"bytes"
+	"io"
+)
+
 func Unchanged1(n int)
 func Unchanged2(n int) error
 func Unchanged3(n int) error
@@ -51,3 +56,11 @@ var BreakingV3 int
 var RemovedV1 int
 
 type CompatibleT3 byte
+
+type CompatibleT4 *bytes.Buffer
+
+type CompatibleT5 chan struct{}
+
+func Compatible3(b *bytes.Buffer)
+
+func Compatible4() io.Reader

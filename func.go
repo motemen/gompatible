@@ -98,7 +98,7 @@ func identicalSansNames(fa, fb *types.Func) bool {
 // - The number of parameters equal and the types of parameters are compatible for each of them.
 // - The latter parameters have exactly one extra parameter which is a variadic parameter.
 func sigParamsCompatible(s1, s2 *types.Signature) bool {
-	extra := tuplesCompatibleExtra(s1.Params(), s2.Params())
+	extra := tuplesCompatibleExtra(s1.Params(), s2.Params(), cmpLower)
 
 	switch {
 	case extra == nil:
@@ -124,7 +124,7 @@ func sigResultsCompatible(s1, s2 *types.Signature) bool {
 		return true
 	}
 
-	extra := tuplesCompatibleExtra(s1.Results(), s2.Results())
+	extra := tuplesCompatibleExtra(s1.Results(), s2.Results(), cmpUpper)
 
 	switch {
 	case extra == nil:
@@ -136,7 +136,7 @@ func sigResultsCompatible(s1, s2 *types.Signature) bool {
 	return false
 }
 
-func tuplesCompatibleExtra(p1, p2 *types.Tuple) []*types.Var {
+func tuplesCompatibleExtra(p1, p2 *types.Tuple, typeDirection cmp) []*types.Var {
 	len1 := p1.Len()
 	len2 := p2.Len()
 
@@ -147,17 +147,21 @@ func tuplesCompatibleExtra(p1, p2 *types.Tuple) []*types.Var {
 	vars := make([]*types.Var, len2-len1)
 
 	for i := 0; i < len2; i++ {
-		if i < len1 {
-			v1 := p1.At(i)
-			v2 := p2.At(i)
-
-			if v1.Type().String() != v2.Type().String() { // FIXME
-				return nil
-			}
-		} else {
+		if i >= len1 {
 			v2 := p2.At(i)
 			vars[i-len1] = v2
+			continue
 		}
+
+		v1 := p1.At(i)
+		v2 := p2.At(i)
+
+		c := cmpTypes(v1.Type(), v2.Type())
+		if c == cmpEqual || c == typeDirection {
+			continue
+		}
+
+		return nil
 	}
 
 	return vars

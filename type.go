@@ -61,11 +61,6 @@ func (tc TypeChange) Kind() ChangeKind {
 	return ChangeBreaking
 }
 
-// FIXME: acutally the type compatibility has direction,
-// namely more specific to more general (eg. struct to interface) and the opposite.
-// In function parameters the former case will be compatible,
-// while in function results the latter case will.
-
 type compatibility int
 
 const (
@@ -73,6 +68,67 @@ const (
 	compCompatible
 	compIdentical
 )
+
+// Comparing type T and S
+type cmp int
+
+const (
+	// T and S cannot be comparable
+	cmpInvalid cmp = iota
+
+	// T > S, i.e. S is more specific
+	// which means S can be considered as T
+	// and the reverse is not
+	// eg. io.Reader > *bytes.Buffer
+	cmpUpper
+	cmpLower
+
+	// T == S
+	cmpEqual
+)
+
+func cmpTypes(t1, t2 types.Type) cmp {
+	if types.Identical(t1, t2) {
+		return cmpEqual
+	}
+
+	// Can assign value of t1 to variable of t2
+	// t1 is more specific
+	// eg. (t1, t2) = (*bytes.Buffer, io.Reader), (io.Reader, interface{})
+	if types.AssignableTo(t1, t2) {
+		return cmpLower
+	}
+
+	if types.AssignableTo(t2, t1) {
+		return cmpUpper
+	}
+
+	if bt1, ok := t1.(*types.Basic); ok {
+		if bt2, ok := t2.(*types.Basic); ok {
+			// For basic types, type "X" is more general than "untyped X"
+			// eg. untyped string < string
+			if bt1.Info()&types.IsUntyped != 0 {
+				if bt1.Info() == bt2.Info()|types.IsUntyped {
+					return cmpLower
+				}
+			}
+
+			if bt2.Info()&types.IsUntyped != 0 {
+				if bt2.Info() == bt1.Info()|types.IsUntyped {
+					return cmpUpper
+				}
+			}
+
+			// Names differ, but the basic kind is the same
+			// eg. uint8 vs byte
+			if bt1.Kind() == bt2.Kind() {
+				return cmpEqual
+			}
+		}
+	}
+
+	return cmpInvalid
+}
 
 func compareTypes(t1, t2 types.Type) compatibility {
 	// If both types are struct, mark them comptabile
@@ -104,6 +160,10 @@ func compareTypes(t1, t2 types.Type) compatibility {
 				return compCompatible
 			}
 		}
+	}
+
+	if types.AssignableTo(t1, t2) {
+		return compCompatible
 	}
 
 	return compIncompatible
