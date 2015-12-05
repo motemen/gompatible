@@ -1,9 +1,11 @@
 package gompatible
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
+	"go/ast"
 	"golang.org/x/tools/go/types"
 )
 
@@ -18,12 +20,43 @@ func (vc ValueChange) TypesObject() types.Object {
 
 var rxAfterEqualSign = regexp.MustCompile(` =.*$`)
 
+// ref: src/cmd/doc/pkg.go
+func (v Value) showSpec() string {
+	for _, spec := range v.Doc.Decl.Specs {
+		valueSpec, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
+		}
+
+		for i, ident := range valueSpec.Names {
+			if ident.Name != v.Name {
+				continue
+			}
+
+			typ := ""
+			if valueSpec.Type != nil {
+				typ = " " + v.Package.showASTNode(valueSpec.Type)
+			}
+
+			val := ""
+			if i < len(valueSpec.Values) && valueSpec.Values[i] != nil {
+				val = fmt.Sprintf(" = %s", v.Package.showASTNode(valueSpec.Values[i]))
+			}
+
+			return fmt.Sprintf("%s %s%s%s", v.Doc.Decl.Tok, ident.Name, typ, val)
+		}
+	}
+
+	panic(fmt.Sprintf("BUG: Could not find name %q from decl %#v", v.Name, v.Doc.Decl))
+}
+
 func (vc ValueChange) ShowBefore() string {
 	v := vc.Before
 	if v == nil || v.Doc == nil {
 		return ""
 	}
-	s := v.Package.showASTNode(v.Doc.Decl) // or dig into .Specs?
+
+	s := v.showSpec()
 	lines := strings.Split(s, "\n")
 	if len(lines) == 1 {
 		return lines[0]
@@ -37,7 +70,8 @@ func (vc ValueChange) ShowAfter() string {
 	if v == nil || v.Doc == nil {
 		return ""
 	}
-	s := v.Package.showASTNode(v.Doc.Decl) // or dig into .Specs?
+
+	s := v.showSpec()
 	lines := strings.Split(s, "\n")
 	if len(lines) == 1 {
 		return lines[0]

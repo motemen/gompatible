@@ -48,6 +48,7 @@ type Type struct {
 
 // Value is a syntactically parsed, type-checked and (maybe) documented toplevel value (var or const).
 type Value struct {
+	Name    string
 	Package *Package
 	Doc     *doc.Value
 	Types   types.Object // *types.Var (IsConst == false) or *types.Const (IsConst == true)
@@ -270,6 +271,7 @@ func (p *Package) buildValues() map[string]*Value {
 			switch typesV := p.TypesPkg.Scope().Lookup(name).(type) {
 			case *types.Var:
 				p.Values[name] = &Value{
+					Name:    name,
 					Package: p,
 					Doc:     docV,
 					Types:   typesV,
@@ -278,6 +280,7 @@ func (p *Package) buildValues() map[string]*Value {
 
 			case *types.Const:
 				p.Values[name] = &Value{
+					Name:    name,
 					Package: p,
 					Doc:     docV,
 					Types:   typesV,
