@@ -1,6 +1,9 @@
 package gompatible
 
 import (
+	"regexp"
+	"strings"
+
 	"golang.org/x/tools/go/types"
 )
 
@@ -13,12 +16,20 @@ func (vc ValueChange) TypesObject() types.Object {
 	return vc.Before.Types
 }
 
+var rxAfterEqualSign = regexp.MustCompile(` =.*$`)
+
 func (vc ValueChange) ShowBefore() string {
 	v := vc.Before
 	if v == nil || v.Doc == nil {
 		return ""
 	}
-	return v.Package.showASTNode(v.Doc.Decl) // or dig into .Specs?
+	s := v.Package.showASTNode(v.Doc.Decl) // or dig into .Specs?
+	lines := strings.Split(s, "\n")
+	if len(lines) == 1 {
+		return lines[0]
+	} else {
+		return rxAfterEqualSign.ReplaceAllLiteralString(lines[0], " = ...")
+	}
 }
 
 func (vc ValueChange) ShowAfter() string {
@@ -26,7 +37,13 @@ func (vc ValueChange) ShowAfter() string {
 	if v == nil || v.Doc == nil {
 		return ""
 	}
-	return v.Package.showASTNode(v.Doc.Decl) // or dig into .Specs?
+	s := v.Package.showASTNode(v.Doc.Decl) // or dig into .Specs?
+	lines := strings.Split(s, "\n")
+	if len(lines) == 1 {
+		return lines[0]
+	} else {
+		return rxAfterEqualSign.ReplaceAllLiteralString(lines[0], " = ...")
+	}
 }
 
 func (vc ValueChange) Kind() ChangeKind {
