@@ -1,3 +1,5 @@
+// gompat takes Go package and revision range to show
+// API changes between two revisions.
 package main
 
 import (
@@ -14,7 +16,7 @@ import (
 )
 
 func usage() {
-	fmt.Printf("Usage: %s [-a] [-r] <rev1>[..<rev2>] [<import path>[...]]\n", os.Args[0])
+	fmt.Printf("Usage: %s [-a] [-r] <rev1>[..<rev2>] [<import path>[/...]]\n", os.Args[0])
 	flag.PrintDefaults()
 	os.Exit(1)
 }
@@ -22,8 +24,8 @@ func usage() {
 func main() {
 	var (
 		flagAll     = flag.Bool("a", false, "show also unchanged APIs")
-		flagRecurse = flag.Bool("r", false, "recurse into subdirectories")
-		flagDiff    = flag.Bool("d", false, "run `diff` on multi-line changes")
+		flagRecurse = flag.Bool("r", false, `recurse into subdirectories (can be specified by "/..." suffix to the import path)`)
+		flagDiff    = flag.Bool("d", false, "run diff on multi-line changes")
 	)
 	flag.Parse()
 	flag.Usage = usage
@@ -74,6 +76,7 @@ func main() {
 	}
 
 	var packageIndex int
+	var hasBreaking bool
 	for _, name := range util.SortedStringSet(util.MapKeys(diffs)) {
 		diff := diffs[name]
 
@@ -101,6 +104,9 @@ func main() {
 				printHeader()
 				printChange(change, *flagDiff)
 			}
+			if change.Kind() == gompatible.ChangeBreaking || change.Kind() == gompatible.ChangeRemoved {
+				hasBreaking = true
+			}
 		}
 
 		types := diff.Types()
@@ -109,6 +115,9 @@ func main() {
 			if *flagAll || change.Kind() != gompatible.ChangeUnchanged {
 				printHeader()
 				printChange(change, *flagDiff)
+			}
+			if change.Kind() == gompatible.ChangeBreaking || change.Kind() == gompatible.ChangeRemoved {
+				hasBreaking = true
 			}
 		}
 
@@ -119,7 +128,14 @@ func main() {
 				printHeader()
 				printChange(change, *flagDiff)
 			}
+			if change.Kind() == gompatible.ChangeBreaking || change.Kind() == gompatible.ChangeRemoved {
+				hasBreaking = true
+			}
 		}
+	}
+
+	if hasBreaking {
+		os.Exit(1)
 	}
 }
 
