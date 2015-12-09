@@ -102,7 +102,7 @@ Example:
 func F(n, m int) error
 
 // after
-func F(n, m int, opt ...interface{}}) error
+func F(n, m int, opt ...interface{}) error
 ~~~
 
 ~~~
