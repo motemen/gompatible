@@ -140,17 +140,17 @@ func main() {
 }
 
 type changeMark struct {
-	mark  string // should have length == 2
+	mark  [2]byte
 	color ct.Color
 }
 
 var (
-	markAdded      = changeMark{"+ ", ct.Green}
-	markRemoved    = changeMark{"- ", ct.Red}
-	markUnchanged  = changeMark{"= ", ct.Blue}
-	markCompatible = changeMark{"* ", ct.Yellow}
-	markBreaking   = changeMark{"! ", ct.Red}
-	markConfer     = changeMark{". ", ct.None}
+	markAdded      = changeMark{[2]byte{'+', ' '}, ct.Green}
+	markRemoved    = changeMark{[2]byte{'-', ' '}, ct.Red}
+	markUnchanged  = changeMark{[2]byte{'=', ' '}, ct.Blue}
+	markCompatible = changeMark{[2]byte{'*', ' '}, ct.Yellow}
+	markBreaking   = changeMark{[2]byte{'!', ' '}, ct.Red}
+	markConfer     = changeMark{[2]byte{'.', ' '}, ct.None}
 )
 
 var rxDiffThunkStart = regexp.MustCompile(`^(?:\x1b\[\d+m)?@@ `)
@@ -161,7 +161,7 @@ func printChange(c gompatible.Change, doDiff bool) {
 		for i := range lines {
 			if i == 0 {
 				ct.ChangeColor(mark.color, false, ct.None, false)
-				fmt.Print(mark.mark)
+				fmt.Print(string(mark.mark[:]))
 				ct.ResetColor()
 				fmt.Println(lines[i])
 			} else {
