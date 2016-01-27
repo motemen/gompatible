@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"go/ast"
-	"golang.org/x/tools/go/types"
+	"go/types"
 )
 
 type ValueChange struct {

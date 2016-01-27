@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"golang.org/x/tools/go/types"
+	"go/types"
 )
 
 func dieIf(err error) {

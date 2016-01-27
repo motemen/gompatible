@@ -1,7 +1,7 @@
 package gompatible
 
 import (
-	"golang.org/x/tools/go/types"
+	"go/types"
 )
 
 // ChangeKind represents the kind of a change of an API between two revisions.

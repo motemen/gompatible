@@ -10,10 +10,10 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"go/types"
 
 	"golang.org/x/tools/go/buildutil"
 	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/types"
 )
 
 // Package represents a parsed, type-checked and documented package.
