@@ -2,7 +2,8 @@ package gompatible
 
 import (
 	"go/types"
-	_ "golang.org/x/tools/go/gcimporter"
+
+	_ "golang.org/x/tools/go/gcimporter15"
 )
 
 // TypeChange represents a change between two types.
